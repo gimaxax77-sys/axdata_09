@@ -3,6 +3,7 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const FILES = "/files/";
 
 let CATALOG = null;
+let STATUS = null; // /api/status (모드 + 가격)
 let ENTITY = "character";
 let MODE = "single"; // single | batch
 
@@ -88,6 +89,7 @@ function applyConfig(cfg) {
     const set = new Set(cfg.assets);
     $$('#asset-picker input[name="asset"]').forEach((c) => (c.checked = set.has(c.value)));
   }
+  computeEstimate();
 }
 function wirePresets() {
   $("#preset-select").addEventListener("change", (e) => {
@@ -282,12 +284,14 @@ function wireModeToggle() {
       const v = document.querySelector('#asset-picker input[value="video"]');
       if (v) v.checked = false;
     }
+    computeEstimate();
   }));
 }
 
 async function loadStatus() {
   try {
     const s = await (await fetch("/api/status")).json();
+    STATUS = s;
     const pills = [
       ["GPT", s.gpt, s.openai_model],
       ["Gemini", s.gemini, s.gemini_model],
@@ -343,6 +347,7 @@ function renderAssetPicker() {
     const v = document.querySelector('#asset-picker input[value="video"]');
     if (v) v.checked = false;
   }
+  computeEstimate();
 }
 
 function setAll(state) {
@@ -351,6 +356,106 @@ function setAll(state) {
 function setDefaults() {
   const defs = new Set(CATALOG.assets.filter((a) => a.default).map((a) => a.key));
   $$('#asset-picker input[name="asset"]').forEach((c) => (c.checked = defs.has(c.value)));
+}
+
+// ── 예상 파일수 · 용량 · 비용 (실시간) ───────────────────
+// PNG/GIF 용량은 픽셀수 기반 근사치. LIVE(실 API)는 사진/회화형이라 크고,
+// DEMO(플레이스홀더)는 단순 도형이라 작다.
+const BYTES_PER_PX = { live: 1.5, demo: 0.22 };  // 압축 PNG 근사(바이트/픽셀)
+
+function imgBytes(size, scale, live) {
+  const px = size[0] * size[1] * scale * scale;
+  return px * (live ? BYTES_PER_PX.live : BYTES_PER_PX.demo);
+}
+function fmtBytes(b) {
+  if (b >= 1024 * 1024) return (b / 1048576).toFixed(b >= 10485760 ? 0 : 1) + " MB";
+  if (b >= 1024) return Math.round(b / 1024) + " KB";
+  return Math.round(b) + " B";
+}
+
+// 이미지 에셋 1종의 (이미지 장수, 총 파일수, 용량) 계산
+function assetFileInfo(a, variantCount, opts) {
+  if (!a.is_image) { // 통합 산출물 (API 이미지 아님, 로컬 합성)
+    if (a.key === "sheet") return { images: 0, files: 2, bytes: 2.2e6 };   // PNG+PDF
+    if (a.key === "video") return { images: 0, files: 3, bytes: 4.5e6 };   // GIF+MP4+draft
+    return { images: 0, files: 1, bytes: 3e5 };
+  }
+  const n = a.variable ? Math.min(variantCount, a.pool_max)
+    : (a.fixed_count > 0 ? a.fixed_count : 1);
+  let files = n;
+  let bytes = n * imgBytes(a.size, opts.scale, opts.live);
+  if (a.is_anim && n > 1) {                 // 애니: 스트립 시트 + GIF
+    files += 2;
+    bytes += imgBytes(a.size, opts.scale, opts.live) * n * 0.9;  // 시트
+    bytes += a.size[0] * a.size[1] * n * 0.4;                    // GIF(팔레트)
+  } else if (opts.spriteSheet && n > 1) {   // 스프라이트 시트 패킹
+    files += 1;
+    bytes += imgBytes(a.size, opts.scale, opts.live) * n * 0.9;
+  }
+  if (a.key === "tileset") {                // 3×3 미리보기 1장
+    files += 1;
+    bytes += imgBytes(a.size, opts.scale, false) * 0.6;
+  }
+  return { images: n, files, bytes };
+}
+
+function computeEstimate() {
+  if (!CATALOG || !STATUS) return;
+  const byKey = Object.fromEntries(CATALOG.assets.map((a) => [a.key, a]));
+  const checked = $$('#asset-picker input[name="asset"]:checked').map((c) => c.value);
+  const fd = new FormData($("#gen-form"));
+  const variantCount = parseInt(fd.get("variant_count") || "5", 10);
+  const scale = parseFloat(fd.get("image_scale") || "1.0");
+  const spriteSheet = fd.get("sprite_sheet") !== null;
+  const model = fd.get("image_model") || "";
+
+  const useOpenAIImg = model === "gpt-image-1";
+  const imgLive = useOpenAIImg ? STATUS.gpt === "live" : STATUS.gemini === "live";
+  const opts = { scale, live: imgLive, spriteSheet };
+
+  let images = 0, files = 2, bytes = 20000; // concept.json + result.json + 여유
+  checked.forEach((k) => {
+    const a = byKey[k]; if (!a) return;
+    const info = assetFileInfo(a, variantCount, opts);
+    images += info.images; files += info.files; bytes += info.bytes;
+  });
+
+  let mult = 1, extraFiles = 0, extraBytes = 0;
+  if (MODE === "batch") {
+    mult = Math.max(1, Math.min(8, parseInt(fd.get("count") || "4", 10)));
+    if (fd.get("make_codex") !== null) { extraFiles = 1; extraBytes = 5e5; } // 도감 1장
+  }
+  images *= mult;
+  files = files * mult + extraFiles;
+  bytes = bytes * mult + extraBytes;
+
+  // 비용: 이미지 장수 × 장당 단가 + 기획(GPT) 건당. 데모(비-LIVE)는 무료.
+  const p = STATUS.pricing || {};
+  const perImg = useOpenAIImg ? (p.openai_image || 0.04) : (p.gemini_image || 0.039);
+  const gptLive = STATUS.gpt === "live";
+  let usd = 0;
+  if (imgLive) usd += images * perImg;
+  if (gptLive) usd += (p.gpt_concept || 0.002) * mult;
+  const krw = usd * (p.usd_krw || 1350);
+
+  $("#est-files").textContent = files.toLocaleString();
+  $("#est-size").textContent = "~" + fmtBytes(bytes);
+  $("#est-images").textContent = images.toLocaleString();
+  const costEl = $("#est-cost");
+  const noteEl = $("#est-note");
+  if (!checked.length) {
+    costEl.textContent = "–";
+    noteEl.textContent = "· 에셋을 선택하세요";
+    noteEl.className = "est-note warnish";
+  } else if (usd <= 0) {
+    costEl.textContent = "무료";
+    noteEl.textContent = "· 데모 모드 (API 미과금)";
+    noteEl.className = "est-note demoish";
+  } else {
+    costEl.textContent = "~$" + usd.toFixed(3) + " (₩" + Math.round(krw).toLocaleString() + ")";
+    noteEl.textContent = "· 예상치";
+    noteEl.className = "est-note";
+  }
 }
 
 // ── 실시간 진행률 (서버 폴링) ────────────────────────────
@@ -467,9 +572,13 @@ $("#gen-form").addEventListener("submit", async (e) => {
   }
 });
 
-$("#sel-all").addEventListener("click", (e) => { e.preventDefault(); setAll(true); });
-$("#sel-none").addEventListener("click", (e) => { e.preventDefault(); setAll(false); });
-$("#sel-default").addEventListener("click", (e) => { e.preventDefault(); setDefaults(); });
+$("#sel-all").addEventListener("click", (e) => { e.preventDefault(); setAll(true); computeEstimate(); });
+$("#sel-none").addEventListener("click", (e) => { e.preventDefault(); setAll(false); computeEstimate(); });
+$("#sel-default").addEventListener("click", (e) => { e.preventDefault(); setDefaults(); computeEstimate(); });
+
+// 폼의 어떤 값이 바뀌든(체크박스/셀렉트/숫자) 예상치 갱신
+$("#gen-form").addEventListener("input", computeEstimate);
+$("#gen-form").addEventListener("change", computeEstimate);
 
 // ── 개별 에셋 재생성 ─────────────────────────────────────
 let CURRENT_JOB_ID = null;

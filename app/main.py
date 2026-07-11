@@ -94,6 +94,12 @@ def status() -> dict:
         "openai_model": settings.openai_model,
         "gemini_model": settings.gemini_image_model,
         "output_dir": settings.output_dir,
+        "pricing": {
+            "gemini_image": settings.gemini_price_image,
+            "openai_image": settings.openai_image_price,
+            "gpt_concept": settings.gpt_concept_cost,
+            "usd_krw": settings.usd_krw,
+        },
     }
 
 
