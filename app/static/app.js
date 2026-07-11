@@ -341,7 +341,9 @@ function renderAssetPicker() {
     .filter((c) => grouped[c])
     .map((c, idx) => `
       <details class="asset-group" ${idx < 2 ? "open" : ""}>
-        <summary>${cats[c]} <span class="cnt">(${grouped[c].length})</span></summary>
+        <summary>${cats[c]} <span class="cnt">(${grouped[c].length})</span>
+          <span class="grp-sel"><a href="#" class="cat-all" data-cat="${c}">전체</a><a href="#" class="cat-none" data-cat="${c}">해제</a></span>
+        </summary>
         <div class="group-items">
           ${grouped[c].map((a) => {
             const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
@@ -1051,6 +1053,29 @@ $("#gen-form").addEventListener("submit", async (e) => {
 $("#sel-all").addEventListener("click", (e) => { e.preventDefault(); setAll(true); computeEstimate(); });
 $("#sel-none").addEventListener("click", (e) => { e.preventDefault(); setAll(false); computeEstimate(); });
 $("#sel-default").addEventListener("click", (e) => { e.preventDefault(); setDefaults(); computeEstimate(); });
+
+// 카테고리(중분류)별 전체/해제 — summary 안이라 토글 전파를 막는다
+$("#asset-picker").addEventListener("click", (e) => {
+  const link = e.target.closest(".cat-all, .cat-none");
+  if (!link) return;
+  e.preventDefault(); e.stopPropagation();
+  const det = link.closest(".asset-group");
+  const on = link.classList.contains("cat-all");
+  det.querySelectorAll('input[name="asset"]').forEach((c) => { c.checked = on; });
+  computeEstimate();
+});
+
+// 고급 옵션 전체/해제
+$("#adv-all").addEventListener("click", (e) => {
+  e.preventDefault();
+  $$('.adv input[type="checkbox"]').forEach((c) => { c.checked = true; });
+  computeEstimate();
+});
+$("#adv-none").addEventListener("click", (e) => {
+  e.preventDefault();
+  $$('.adv input[type="checkbox"]').forEach((c) => { c.checked = false; });
+  computeEstimate();
+});
 
 // 폼의 어떤 값이 바뀌든(체크박스/셀렉트/숫자) 예상치 갱신
 $("#gen-form").addEventListener("input", computeEstimate);
