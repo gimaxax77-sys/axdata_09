@@ -119,7 +119,17 @@ def _generate_image(prompt, out_path, size, settings, *, placeholder, label, pal
                                      reference=reference, model=model):
                 return True
         except Exception as exc:  # pragma: no cover - network guard
-            print(f"[gemini_service] Gemini 호출 실패, 데모 폴백: {exc}")
+            print(f"[gemini_service] Gemini 호출 실패: {exc}")
+        # 레퍼런스가 있었는데 실패/빈응답이면, 레퍼런스 없이 재시도
+        # (일관성은 낮아지지만 실제 이미지를 얻는다 → 전신 등 누락 방지)
+        if reference is not None:
+            try:
+                if _generate_with_gemini(prompt, out_path, size, settings,
+                                         reference=None, model=model):
+                    print("[gemini_service] 레퍼런스 없이 재시도 성공")
+                    return True
+            except Exception as exc:  # pragma: no cover
+                print(f"[gemini_service] 재시도도 실패, 데모 폴백: {exc}")
     _generate_placeholder(out_path, size, label, palette, placeholder)
     return False
 

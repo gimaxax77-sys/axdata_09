@@ -148,6 +148,29 @@ def history(limit: int = 60) -> list[dict]:
     return items[:limit]
 
 
+@app.post("/api/open/{job_id}")
+def open_folder(job_id: str) -> dict:
+    """로컬 파일 탐색기에서 해당 결과 폴더 열기 (로컬 실행 전용)."""
+    import subprocess
+    import sys
+
+    safe = Path(job_id).name
+    folder = (settings.output_path / safe).resolve()
+    if not str(folder).startswith(str(settings.output_path.resolve())) or not folder.is_dir():
+        raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
+    try:
+        if sys.platform.startswith("win"):
+            import os
+            os.startfile(str(folder))  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(folder)])
+        else:
+            subprocess.Popen(["xdg-open", str(folder)])
+    except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=500, detail=f"폴더 열기 실패: {exc}") from exc
+    return {"opened": str(folder)}
+
+
 @app.delete("/api/history/{job_id}")
 def delete_history(job_id: str) -> dict:
     """히스토리 항목(폴더) 삭제."""

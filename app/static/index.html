@@ -10,80 +10,76 @@
   <header class="topbar">
     <div class="brand">
       <span class="logo">◈</span>
-      <div>
+      <div class="brand-txt">
         <h1>AXData Studio</h1>
         <p>GPT · Gemini · CapCut 캐릭터 / 몬스터 / NPC 아트 자동 제작</p>
       </div>
     </div>
     <div class="topbar-right">
-      <button type="button" id="history-btn" class="hist-btn" title="생성 히스토리">🕘 히스토리</button>
       <div id="usage" class="usage-bar" title="이 앱에서 생성한 사용량 기준 예상치입니다. 실제 잔액은 각 콘솔에서 확인하세요."></div>
       <div id="status" class="status-pills"></div>
     </div>
   </header>
 
-  <main class="layout">
-    <!-- 입력 폼 -->
-    <section class="panel form-panel">
+  <main class="layout3">
+    <!-- ── 좌: 생성 옵션 ── -->
+    <section class="pane pane-form">
       <div class="mode-toggle" id="mode-toggle">
         <button type="button" class="mtab on" data-m="single">단일 생성</button>
-        <button type="button" class="mtab" data-m="batch">일괄 생성 · 도감</button>
+        <button type="button" class="mtab" data-m="batch">일괄 · 도감</button>
       </div>
 
-      <h2>1. 대상 설정</h2>
       <form id="gen-form">
-        <div class="entity-tabs" id="entity-tabs">
-          <!-- JS로 채움 -->
-        </div>
+        <div class="entity-tabs" id="entity-tabs"></div>
 
         <div id="single-fields">
-          <label>이름 <span class="hint">(비우면 자동 생성)</span>
-            <input name="name" type="text" placeholder="예: 카엘, 카론, 바르트…" />
+          <label class="fld">이름 <span class="hint">비우면 자동</span>
+            <input name="name" type="text" placeholder="예: 카엘, 카론…" />
           </label>
         </div>
 
         <div id="batch-fields" class="hidden">
           <div class="row2">
-            <label>생성 개수 <span class="hint">(1~8)</span>
+            <label class="fld">개수 <span class="hint">1~8</span>
               <input name="count" type="number" min="1" max="8" value="4" />
             </label>
-            <label class="chk-label">도감 오버뷰
-              <label class="chk-inline"><input type="checkbox" name="make_codex" checked /> 생성</label>
+            <label class="fld chk-label">도감
+              <label class="chk-inline"><input type="checkbox" name="make_codex" checked /> 오버뷰</label>
             </label>
           </div>
-          <label>역할 / 종족 목록 <span class="hint">(한 줄에 하나, 비우면 자동 다양화)</span>
+          <label class="fld">역할 목록 <span class="hint">한 줄에 하나</span>
             <textarea name="roles" rows="3" placeholder="드래곤&#10;골렘&#10;언데드"></textarea>
           </label>
         </div>
 
         <div class="row2">
-          <label>장르
-            <select name="genre" id="genre-select"><!-- JS로 채움 --></select>
+          <label class="fld">장르
+            <select name="genre" id="genre-select"></select>
           </label>
-          <label id="role-label">직업 / 역할
-            <input name="role" type="text" placeholder="예: 전사, 드래곤…" />
+          <label class="fld" id="role-label">직업 / 역할
+            <select id="role-preset"></select>
           </label>
         </div>
+        <input name="role" type="text" class="mt6" placeholder="직접 입력 가능 (예: 권사)" />
 
-        <label>아트 스타일 <span class="hint">(프리셋 선택 후 직접 수정 가능)</span>
-          <select id="style-preset" class="mb6"><!-- JS로 채움 --></select>
-          <input name="art_style" type="text"
-                 value="semi-realistic digital painting" />
+        <label class="fld">아트 스타일
+          <select id="style-preset"></select>
         </label>
+        <input name="art_style" type="text" class="mt6" value="semi-realistic digital painting" />
 
-        <label>추가 키워드 <span class="hint">(쉼표 구분)</span>
-          <input name="keywords" type="text" placeholder="예: 얼음, 늑대, 은빛 갑옷" />
+        <label class="fld">추가 키워드 <span class="hint">쉼표 구분</span>
+          <input name="keywords" type="text" placeholder="예: 얼음, 늑대" />
         </label>
 
         <div class="row2">
-          <label>이미지 크기
+          <label class="fld">이미지 크기
             <select name="image_scale">
               <option value="1.0">표준 (빠름)</option>
               <option value="1.5">크게 (고해상)</option>
               <option value="0.75">작게 (절약)</option>
             </select>
           </label>
-          <label>변형 개수 <span class="hint">(표정/포즈/스킬 등)</span>
+          <label class="fld">변형 개수 <span class="hint">표정/포즈</span>
             <select name="variant_count">
               <option value="3">3개</option>
               <option value="5" selected>5개</option>
@@ -93,55 +89,47 @@
           </label>
         </div>
 
-        <label>이미지 모델
-          <select name="image_model" id="model-select"><!-- JS로 채움 --></select>
-          <span class="hint">gpt-image-1은 OpenAI 키 필요 (투명 네이티브 지원)</span>
+        <label class="fld">이미지 모델
+          <select name="image_model" id="model-select"></select>
+          <span class="hint">gpt-image-1은 OpenAI 키 필요</span>
         </label>
 
-        <fieldset class="outputs adv">
+        <fieldset class="adv">
           <legend>고급 (실 API 권장)</legend>
-          <label class="chk"><input type="checkbox" name="consistency" checked />
-            캐릭터 일관성 <span class="hint">초상화 기준 동일 인물 유지</span></label>
-          <label class="chk"><input type="checkbox" name="style_lock" />
-            스타일 락 <span class="hint">전체 에셋 룩·팔레트 통일</span></label>
-          <label class="chk"><input type="checkbox" name="transparent" />
-            투명 배경(PNG) <span class="hint">스프라이트·아이콘 배경 제거</span></label>
-          <label class="chk"><input type="checkbox" name="sprite_sheet" />
-            스프라이트 시트 <span class="hint">변형을 아틀라스+메타로 패킹</span></label>
+          <label class="chk"><input type="checkbox" name="consistency" checked /> 캐릭터 일관성</label>
+          <label class="chk"><input type="checkbox" name="style_lock" /> 스타일 락</label>
+          <label class="chk"><input type="checkbox" name="transparent" /> 투명 배경(PNG)</label>
+          <label class="chk"><input type="checkbox" name="sprite_sheet" /> 스프라이트 시트</label>
         </fieldset>
 
-        <h2 class="mt">2. 생성할 아트 요소
+        <div class="section-lbl">생성할 아트 요소
           <span class="select-actions">
-            <a href="#" id="sel-all">전체</a> · <a href="#" id="sel-none">해제</a> ·
-            <a href="#" id="sel-default">기본</a>
+            <a href="#" id="sel-all">전체</a><a href="#" id="sel-none">해제</a><a href="#" id="sel-default">기본</a>
           </span>
-        </h2>
-        <div id="asset-picker" class="asset-picker"><!-- JS로 채움 --></div>
+        </div>
+        <div id="asset-picker" class="asset-picker"></div>
 
         <details class="cautions">
           <summary>⚠️ 비용·사용 주의사항</summary>
           <ul>
-            <li><b>비용은 이미지 장수에 비례</b> — 변형 10개·여러 가변 에셋·일괄(개체×에셋)은 급증. 처음엔 작게 테스트.</li>
-            <li><b>이미지 크기 '크게'</b> + 배경/배너/스플래시 → 대형이라 비용↑. 아이콘류는 '표준' 권장.</li>
-            <li><b>gpt-image-1</b> 모델은 OpenAI 키 필요(투명 네이티브). Gemini 키만 있으면 기본 사용.</li>
-            <li><b>일관성·스타일 락·투명 배경</b>은 실 API에서 효과(데모는 플레이스홀더).</li>
-            <li><b>표정 세트 ↔ 이모트</b>는 용도만 다른 유사 얼굴 변형 — 필요한 것만 선택 권장.</li>
-            <li>실제 잔액은 API로 조회 불가 — 상단 사용량은 <b>추정치</b>. 실 잔액은 각 콘솔에서 확인.</li>
+            <li><b>비용은 이미지 장수에 비례</b> — 변형·일괄은 급증. 처음엔 작게.</li>
+            <li><b>'크게'</b> + 배경/배너 → 비용↑. 아이콘은 '표준'.</li>
+            <li><b>gpt-image-1</b>은 OpenAI 키 필요(투명 네이티브).</li>
+            <li><b>일관성·스타일락·투명</b>은 실 API에서 효과.</li>
+            <li>상단 사용량은 <b>추정치</b> — 실 잔액은 콘솔 확인.</li>
           </ul>
         </details>
 
         <button type="submit" id="submit-btn">✦ 생성하기</button>
       </form>
-      <p class="foot">API 키가 없으면 데모 모드(로컬 생성)로 동작합니다. 결과는 outputs 폴더에 자동 저장됩니다.</p>
     </section>
 
-    <!-- 결과 -->
-    <section class="panel result-panel">
+    <!-- ── 중: 결과물 ── -->
+    <section class="pane pane-result">
       <div id="empty" class="empty">
         <div class="empty-art">◈</div>
-        <p>대상과 아트 요소를 선택하고<br /><b>생성하기</b>를 눌러보세요.</p>
+        <p>왼쪽에서 설정하고 <b>생성하기</b>를 눌러보세요.</p>
       </div>
-
       <div id="loading" class="loading hidden">
         <div class="spinner"></div>
         <p id="loading-text">기획하는 중…</p>
@@ -149,21 +137,21 @@
           <li data-step="gpt">기획 (GPT)</li>
           <li data-step="gemini">아트 생성 (Gemini)</li>
           <li data-step="sheet">시트 조합</li>
-          <li data-step="video">CapCut 영상 구성</li>
+          <li data-step="video">CapCut 영상</li>
         </ul>
       </div>
-
       <div id="result" class="result hidden"></div>
-
-      <div id="history" class="history hidden">
-        <div class="history-head">
-          <h2>🕘 생성 히스토리</h2>
-          <button type="button" id="history-close" class="link-btn">닫기 ✕</button>
-        </div>
-        <p class="hint">저장 위치: <code id="hist-path">outputs/</code> 폴더 · 항목을 눌러 다시 보기</p>
-        <div id="history-list" class="history-list"></div>
-      </div>
     </section>
+
+    <!-- ── 우: 작업 히스토리 (상시) ── -->
+    <aside class="pane pane-history">
+      <div class="pane-head">
+        <h2>🕘 작업 히스토리</h2>
+        <button type="button" id="hist-refresh" class="icon-btn" title="새로고침">↻</button>
+      </div>
+      <p class="hint">클릭 시 폴더 열림 · <code id="hist-path">outputs/</code></p>
+      <div id="history-list" class="history-list"></div>
+    </aside>
   </main>
 
   <script src="/app.js"></script>

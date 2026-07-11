@@ -38,27 +38,32 @@ Given a short brief, you invent a vivid, production-ready game entity.
 The entity type is: {entity_kind}.
 Guidance: {guidance}
 
-Write prose fields (title, tagline, appearance, personality, backstory,
-abilities, extra values) in the SAME language as the user's brief.
+IMPORTANT — Write ALL prose fields (name, title, tagline, appearance,
+personality, backstory, abilities, extra label/value) in KOREAN (한국어).
+The character MUST clearly match the given Role/Class exactly (e.g. 권사 =
+bare-handed martial artist / fist fighter, NOT a swordsman). Honor the role.
+Provide "name_en": an English or romanized version of the name.
 Keep "visual_core" in ENGLISH — it is reused to build image-generation
 prompts and must be a compact, concrete visual description (species,
 silhouette, colors, materials, distinctive features), no camera or lighting.
+The visual_core MUST reflect the exact role/class too.
 
 Return ONLY a JSON object with EXACTLY these keys:
 {{
-  "name": string,
-  "title": string,
+  "name": string,                  // KOREAN
+  "name_en": string,               // English / romanized
+  "title": string,                 // KOREAN 이명/칭호
   "genre": string,
-  "role": string,
-  "tagline": string,
-  "appearance": string,
-  "personality": string,
-  "backstory": string,
-  "abilities": string[],           // 3-5 items
-  "stats": [ {{"name": string, "value": integer 0-100}} ],  // exactly 6
+  "role": string,                  // KOREAN, must match the brief's role
+  "tagline": string,               // KOREAN
+  "appearance": string,            // KOREAN
+  "personality": string,           // KOREAN
+  "backstory": string,             // KOREAN
+  "abilities": string[],           // KOREAN, 3-5 items
+  "stats": [ {{"name": string, "value": integer 0-100}} ],  // exactly 6, KOREAN names
   "color_palette": string[],       // 4-5 hex colors
-  "visual_core": string,           // ENGLISH visual description
-  "extra": [ {{"label": string, "value": string}} ]  // 3-4 entity-specific facts
+  "visual_core": string,           // ENGLISH visual description (match the role)
+  "extra": [ {{"label": string, "value": string}} ]  // KOREAN, 3-4 facts
 }}
 """
 
@@ -128,6 +133,7 @@ def _coerce_concept(data, req, entity) -> EntityConcept:
     return EntityConcept(
         entity_type=entity,
         name=data.get("name") or req.name or _fallback_name(entity),
+        name_en=data.get("name_en", ""),
         title=data.get("title", ""),
         genre=data.get("genre", req.genre),
         role=data.get("role", req.role),

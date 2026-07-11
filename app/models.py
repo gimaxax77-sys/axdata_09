@@ -54,6 +54,7 @@ class EntityConcept(BaseModel):
 
     entity_type: str = "character"
     name: str
+    name_en: str = ""  # 영문/로마자 이름 (한글 메인 + 영어 서브)
     title: str  # 이명/칭호/종
     genre: str
     role: str  # 직업/종족/유형
