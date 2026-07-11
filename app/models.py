@@ -58,6 +58,7 @@ class EntityConcept(BaseModel):
     stats: list[Stat] = Field(default_factory=list)
     color_palette: list[str] = Field(default_factory=list)  # hex codes
     visual_core: str = ""  # 이미지 생성용 재사용 시각 묘사 (English)
+    art_style: str = ""  # 사용자가 고른 아트 스타일 (이미지 프롬프트에 주입)
     extra: list[LabeledText] = Field(default_factory=list)  # 엔티티별 부가 정보
 
 

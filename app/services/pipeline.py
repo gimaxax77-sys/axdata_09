@@ -86,6 +86,7 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
     # 1) GPT — 기획서 (폴더명에 캐릭명 반영하려고 폴더 확정 전에 먼저)
     progress.check(pid)
     concept = gpt_service.generate_concept(req, settings)
+    concept.art_style = req.art_style  # 이미지 프롬프트에 주입 + concept.json 에 저장
     progress.advance(pid, "기획 완료")
 
     # 폴더명: 장르_직업_캐릭명_날짜 (단일/CSV). 배치 하위(e{i} 중첩)는 그대로 둔다.

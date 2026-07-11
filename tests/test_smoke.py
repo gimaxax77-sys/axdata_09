@@ -160,6 +160,17 @@ def test_pipeline_demo_generates_assets(settings):
     assert (settings.output_path / res.job_id / "result.json").exists()
 
 
+def test_art_style_injected_and_saved(settings):
+    import json
+    req = GenerationRequest(entity_type="character", name="스타일", role="저격수",
+                            genre="sci-fi", art_style="pixel art", assets=["portrait"])
+    res = pipeline.run_pipeline(req, settings, "seed_20260711-170000")
+    # 선택한 아트 스타일이 concept 에 반영되고 concept.json 에 저장됨(재생성에서 재사용)
+    assert res.concept.art_style == "pixel art"
+    cj = json.loads((settings.output_path / res.job_id / "concept.json").read_text(encoding="utf-8"))
+    assert cj.get("art_style") == "pixel art"
+
+
 def test_pipeline_transparent_cutout(settings):
     req = GenerationRequest(
         entity_type="character", name="컷아웃", role="도적",

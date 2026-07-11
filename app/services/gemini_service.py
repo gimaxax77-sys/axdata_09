@@ -90,15 +90,19 @@ def generate_asset(
     use_ref = reference
     do_cutout = transparent and spec.cutout
     results: list[ImageResult] = []
+    art_style = (getattr(concept, "art_style", "") or "").strip()
     for i, variant in enumerate(variants):
         prompt = cat.build_prompt(
             spec,
             visual=concept.visual_core,
             name=concept.name,
-            style="",  # style 은 art_style 대신 visual_core 에 녹아 있음
+            style=art_style,  # 사용자가 고른 아트 스타일을 프롬프트에 반영
             genre=concept.genre,
             variant=variant,
         )
+        # 화풍이 확실히 지배하도록 프롬프트 맨 앞에 강하게 명시
+        if art_style:
+            prompt = f"{art_style} art style, {art_style} rendering. " + prompt
         if use_ref is not None:
             if style_only:
                 prompt = (
