@@ -76,6 +76,7 @@ class GenerationResult(BaseModel):
     concept: EntityConcept
     assets: list[GeneratedAsset] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    request: GenerationRequest | None = None  # 히스토리에서 설정 복원용
 
 
 class BatchRequest(GenBase):

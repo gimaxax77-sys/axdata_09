@@ -86,10 +86,10 @@ function applyConfig(cfg) {
   setV('select[name="variant_count"]', cfg.variant_count); setV('select[name="image_model"]', cfg.image_model);
   setV('input[name="count"]', cfg.count);
   const ta = $('textarea[name="roles"]'); if (ta && cfg.roles != null) ta.value = cfg.roles;
-  const setC = (n, v) => { const el = document.querySelector(`input[name="${n}"]`); if (el) el.checked = !!v; };
+  const setC = (n, v) => { if (v === undefined) return; const el = document.querySelector(`input[name="${n}"]`); if (el) el.checked = !!v; };
   setC("consistency", cfg.consistency); setC("style_lock", cfg.style_lock);
   setC("transparent", cfg.transparent); setC("sprite_sheet", cfg.sprite_sheet);
-  setC("make_codex", cfg.make_codex !== false);
+  if (cfg.make_codex !== undefined) setC("make_codex", cfg.make_codex !== false);
   if (Array.isArray(cfg.assets)) {
     const set = new Set(cfg.assets);
     $$('#asset-picker input[name="asset"]').forEach((c) => (c.checked = set.has(c.value)));
@@ -234,23 +234,39 @@ async function viewHistory(url, kind) {
   } catch (e) { alert("불러오기 실패"); }
 }
 
-// 히스토리 항목의 설정(기획·에셋)을 폼에 복원 — 추가 생성 편의.
-// keywords·변형수·크기는 저장하지 않아 복원 안 됨(현재값 유지).
+// 히스토리 항목의 설정을 폼에 복원 — 추가 생성 편의.
+// 저장된 원본 요청(request)이 있으면 키워드·변형수·크기·옵션까지 전부 복원.
 function loadHistoryConfig(data) {
   const isBatch = !!(data.entries || data.batch_id);
   const entry0 = isBatch ? (data.entries && data.entries[0]) : data;
   const c = (entry0 && entry0.concept) || {};
-  const kinds = new Set(((entry0 && entry0.assets) || []).map((a) => a.kind));
-  const assetKeys = CATALOG.assets.filter((a) => kinds.has(a.key)).map((a) => a.key);
-  if (kinds.has("sheet_png") || kinds.has("sheet_pdf")) assetKeys.push("sheet");
+  const req = (entry0 && entry0.request) || {};
+  // 에셋: 저장된 요청 우선, 없으면 결과 kind 에서 복원(구버전 기록 대비)
+  let assets = req.assets;
+  if (!assets || !assets.length) {
+    const kinds = new Set(((entry0 && entry0.assets) || []).map((a) => a.kind));
+    assets = CATALOG.assets.filter((a) => kinds.has(a.key)).map((a) => a.key);
+    if (kinds.has("sheet_png") || kinds.has("sheet_pdf")) assets.push("sheet");
+  }
+  // 이미지 크기 select 값 매칭(1.0 이 "1" 로 바뀌지 않게 문자열화)
+  const scale = req.image_scale != null
+    ? (Number(req.image_scale) === 1 ? "1.0" : String(req.image_scale)) : undefined;
   applyConfig({
     mode: isBatch ? "batch" : "single",
-    entity: c.entity_type || data.entity_type,
-    name: isBatch ? "" : c.name,
-    genre: c.genre,
-    role: c.role,
-    art_style: c.art_style,
-    assets: assetKeys.length ? assetKeys : undefined,
+    entity: c.entity_type || data.entity_type || req.entity_type,
+    name: isBatch ? "" : (c.name || req.name),
+    genre: c.genre || req.genre,
+    role: c.role || req.role,
+    art_style: c.art_style || req.art_style,
+    keywords: req.keywords,
+    image_scale: scale,
+    variant_count: req.variant_count != null ? String(req.variant_count) : undefined,
+    image_model: req.image_model,
+    consistency: req.consistency,
+    style_lock: req.style_lock,
+    transparent: req.transparent,
+    sprite_sheet: req.sprite_sheet,
+    assets: assets && assets.length ? assets : undefined,
   });
 }
 

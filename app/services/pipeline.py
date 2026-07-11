@@ -271,7 +271,8 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
             warnings.append("BGM 은 분위기 확인용 데모 루프입니다 — 실제 영상엔 "
                             "bgm_guide.txt 의 키워드로 CapCut 음악을 고르세요.")
 
-    result = GenerationResult(job_id=job_id, concept=concept, assets=assets, warnings=warnings)
+    result = GenerationResult(job_id=job_id, concept=concept, assets=assets,
+                              warnings=warnings, request=req)
     # 히스토리용 결과 저장
     try:
         (job_dir / "result.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
