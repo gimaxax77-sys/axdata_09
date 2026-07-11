@@ -297,6 +297,28 @@ def regenerate_asset(req: RegenerateRequest, settings: Settings,
     return new_assets
 
 
+def run_import(rows: list[GenerationRequest], settings: Settings,
+               job_ids: list[str], progress_id: str = "") -> list[GenerationResult]:
+    """CSV/스프레드시트에서 분석한 여러 개체를 순차 생성.
+
+    각 행은 독립 잡(최상위 폴더)으로 생성돼 편집/재생성/히스토리가 동일하게 동작.
+    하위 파이프라인의 progress_id 는 비워 배치 진행률과 충돌하지 않게 한다.
+    """
+    total = max(1, len(rows))
+    progress.start(progress_id, total, "CSV 생성 준비 중…")
+    results: list[GenerationResult] = []
+    for i, req in enumerate(rows):
+        progress.check(progress_id)
+        label = req.name or req.role or req.entity_type
+        progress.step(progress_id, i, f"{i + 1}/{total} · {label} 생성 중…")
+        sub = req.model_copy(update={"progress_id": ""})
+        res = run_pipeline(sub, settings, job_ids[i])
+        results.append(res)
+        progress.advance(progress_id, f"{i + 1}/{total} 완료")
+    progress.finish(progress_id)
+    return results
+
+
 def repack_variants(req: RepackRequest, settings: Settings, job_id: str) -> dict:
     """여러 변형 중 선택한 것만 남기고(나머지 파일 삭제) 시트를 재패킹.
 

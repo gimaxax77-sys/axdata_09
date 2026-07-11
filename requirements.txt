@@ -38,5 +38,8 @@ imageio-ffmpeg>=0.4
 # 배경 제거 가속(선택) — 설치 시 flood_alpha 벡터화로 고해상에서 빨라짐
 # numpy>=1.26
 
+# CSV 가져오기의 .xlsx(엑셀) 지원(선택) — 미설치 시 CSV 로 저장해 올리면 됨
+# openpyxl>=3.1
+
 # 개발/테스트 (선택): pip install pytest 후 `pytest` 로 스모크 테스트 실행
 # pytest>=8.0

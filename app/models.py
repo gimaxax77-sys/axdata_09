@@ -98,6 +98,13 @@ class RegenerateRequest(BaseModel):
     image_model: str = Field("")
 
 
+class ImportRunRequest(BaseModel):
+    """CSV/스프레드시트 분석 결과(개체 목록)를 일괄 생성."""
+
+    rows: list[GenerationRequest] = Field(default_factory=list)
+    progress_id: str = Field("", description="진행률/취소 토큰")
+
+
 class RepackRequest(BaseModel):
     """여러 변형(variant) 중 선택한 것만 남기고 시트를 재패킹."""
 

@@ -234,6 +234,62 @@ def test_budget_set_ignores_bad_values(tmp_path, monkeypatch):
     assert saved["monthly_limit"] == 0.0        # 음수는 0 하한
 
 
+# ── CSV 가져오기 ──────────────────────────────────────────
+def test_importer_parses_and_analyzes_template():
+    from app.services import importer
+    rows = importer.parse_upload("t.csv", importer.TEMPLATE_CSV.encode("utf-8"))
+    assert len(rows) == 4
+    res = importer.analyze(rows)
+    plans = res["plans"]
+    # 1행: 캐릭터 rpg → rpg 번들
+    assert plans[0]["entity_type"] == "character"
+    assert "portrait" in plans[0]["assets"] and "sheet" in plans[0]["assets"]
+    # 2행: 몬스터 도감 번들
+    assert plans[1]["entity_type"] == "monster"
+    assert plans[1]["assets"] == ["portrait", "fullbody", "emblem", "sheet"]
+    # 3행: 직접 지정 에셋 우선
+    assert set(plans[2]["assets"]) == {"portrait", "namecard", "emote"}
+    # 4행: 2d → 애니 번들
+    assert "pixel_sprite" in plans[3]["assets"]
+    assert plans[3]["transparent"] is True
+
+
+def test_importer_purpose_bundles_and_unknown():
+    from app.services import importer
+    rows = [{"entity_type": "캐릭터", "role": "전사", "purpose": "카드"},
+            {"entity_type": "monster", "purpose": "존재하지않음"}]
+    plans = importer.analyze(rows)["plans"]
+    assert "card_frame" in plans[0]["assets"]
+    # 알 수 없는 용도 → 기본 세트 + 경고
+    assert plans[1]["assets"] == ["portrait", "fullbody", "sheet"]
+    assert any("알 수 없는 용도" in w for w in plans[1]["warnings"])
+
+
+def test_importer_korean_labels_and_entity_alias():
+    from app.services import importer
+    rows = [{"entity_type": "몬스터", "genre": "판타지", "assets": "초상화;전신"}]
+    plans = importer.analyze(rows)["plans"]
+    assert plans[0]["entity_type"] == "monster"
+    assert plans[0]["genre"] == "fantasy"
+    assert plans[0]["assets"] == ["portrait", "fullbody"]
+
+
+def test_import_run_generates_independent_jobs(settings):
+    from app.services import importer
+    rows_raw = importer.parse_upload("t.csv", importer.TEMPLATE_CSV.encode("utf-8"))
+    plans = importer.analyze(rows_raw)["plans"][:2]
+    reqs = [GenerationRequest(
+        entity_type=p["entity_type"], name=p["name"], role=p["role"],
+        genre=p["genre"], art_style=p["art_style"], keywords=p["keywords"],
+        assets=p["assets"], variant_count=p["variant_count"],
+        image_scale=p["image_scale"], transparent=p["transparent"]) for p in plans]
+    job_ids = [f"imp_{i}" for i in range(len(reqs))]
+    results = pipeline.run_import(reqs, settings, job_ids)
+    assert len(results) == 2
+    assert (settings.output_path / "imp_0" / "result.json").exists()
+    assert (settings.output_path / "imp_1" / "result.json").exists()
+
+
 # ── 이미지 편집 ───────────────────────────────────────────
 def test_editor_crop_bg_adjust(tmp_path):
     from app.services import editor

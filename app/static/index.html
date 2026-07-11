@@ -60,6 +60,34 @@
       <div class="mode-toggle" id="mode-toggle">
         <button type="button" class="mtab on" data-m="single">단일 생성</button>
         <button type="button" class="mtab" data-m="batch">일괄 · 도감</button>
+        <button type="button" class="mtab" data-m="import">CSV 가져오기</button>
+      </div>
+
+      <!-- ── CSV / 스프레드시트 가져오기 ── -->
+      <div id="import-section" class="import-section hidden">
+        <p class="hint">표를 채워 올리면 <b>내용을 분석해 필요한 아트를 자동 설정</b>하고 일괄 생성합니다.</p>
+        <a href="/api/template.csv" class="mini-btn dl-tmpl" download>⬇ 표준 양식(CSV) 다운로드</a>
+        <label id="drop-zone" class="drop-zone">
+          <input type="file" id="import-file" accept=".csv,.xlsx,.xlsm" hidden />
+          <span class="dz-icon">📄</span>
+          <span class="dz-text">CSV / 엑셀(.xlsx) 파일을 선택하거나 여기로 드래그</span>
+          <span id="import-fname" class="hint sm"></span>
+        </label>
+        <div id="import-preview" class="import-preview hidden"></div>
+        <div id="import-actions" class="import-actions hidden">
+          <span id="import-summary" class="hint sm"></span>
+          <button type="button" id="import-run" class="mini-btn">✦ 전체 생성</button>
+        </div>
+        <details class="cautions import-guide">
+          <summary>📋 양식 작성 가이드</summary>
+          <ul>
+            <li><b>타입</b>: 캐릭터 / 몬스터 / NPC</li>
+            <li><b>용도</b>: rpg · 카드 · 2d · 도감 · 프로필 · ui · 풀세트 중 하나 → 필요한 에셋 자동 선택</li>
+            <li><b>에셋</b>(선택): 직접 지정 시 용도보다 우선. 구분자 <code>;</code> (예: portrait;fullbody;emblem)</li>
+            <li><b>이름</b> 비우면 GPT 자동 작명 · <b>투명</b> y/n · <b>변형수</b> 1~10</li>
+            <li>한 번에 최대 50행까지 처리됩니다.</li>
+          </ul>
+        </details>
       </div>
 
       <div class="preset-bar">

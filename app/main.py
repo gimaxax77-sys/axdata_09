@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
@@ -18,6 +18,7 @@ from .models import (
     EditRequest,
     GenerationRequest,
     GenerationResult,
+    ImportRunRequest,
     RegenerateRequest,
     RepackRequest,
 )
@@ -299,6 +300,61 @@ def edit_asset(job_id: str, req: EditRequest) -> dict:
         raise HTTPException(status_code=500, detail=f"편집 실패: {exc}") from exc
     rel = f"{safe_job}/{fname}"
     return {"file": rel, "width": size[0], "height": size[1]}
+
+
+@app.get("/api/template.csv")
+def import_template() -> PlainTextResponse:
+    """아트 제작 표준 양식 CSV 다운로드."""
+    from .services import importer
+    from urllib.parse import quote
+    disp = ("attachment; filename=\"axdata_template.csv\"; "
+            "filename*=UTF-8''" + quote("아트제작_표준양식.csv"))
+    return PlainTextResponse(
+        importer.TEMPLATE_CSV, media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": disp},
+    )
+
+
+@app.post("/api/import/preview")
+async def import_preview(file: UploadFile = File(...)) -> dict:
+    """CSV/스프레드시트를 분석해 생성 계획(미리보기)을 반환. 생성은 하지 않음."""
+    from .services import importer
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="빈 파일입니다.")
+    try:
+        rows = importer.parse_upload(file.filename or "", content)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"파일 분석 실패: {exc}") from exc
+    if not rows:
+        raise HTTPException(status_code=400, detail="유효한 데이터 행을 찾지 못했습니다. "
+                            "표준 양식을 사용했는지 확인하세요.")
+    return importer.analyze(rows)
+
+
+@app.post("/api/import/run")
+def import_run(payload: ImportRunRequest) -> dict:
+    """분석된 개체 목록을 일괄 생성 (각 행 = 독립 잡)."""
+    rows = payload.rows[:50]
+    if not rows:
+        raise HTTPException(status_code=400, detail="생성할 행이 없습니다.")
+    job_ids = [f"{_job_id(r.entity_type, r.name or r.role or r.entity_type)}_{i}"
+               for i, r in enumerate(rows)]
+    before = usage.snapshot(settings)["total_usd"]
+    try:
+        results = pipeline.run_import(rows, settings, job_ids, payload.progress_id)
+        _record_spend(before)
+    except progress.Cancelled as exc:
+        _record_spend(before)
+        raise HTTPException(status_code=409, detail="CSV 생성이 취소되었습니다.") from exc
+    except Exception as exc:  # pragma: no cover - top-level guard
+        _record_spend(before)
+        raise HTTPException(status_code=500, detail=f"CSV 생성 실패: {exc}") from exc
+    return {"count": len(results),
+            "results": [r.model_dump() for r in results]}
 
 
 @app.get("/api/progress/{progress_id}")

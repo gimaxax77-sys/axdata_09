@@ -36,6 +36,7 @@ async function init() {
   wireBudget();
   wireEditor();
   wireCompare();
+  wireImport();
   loadSettings();
   loadPresets();
   loadUsage();
@@ -281,12 +282,17 @@ function wireModeToggle() {
   $$(".mtab").forEach((b) => b.addEventListener("click", () => {
     MODE = b.dataset.m;
     $$(".mtab").forEach((x) => x.classList.toggle("on", x.dataset.m === MODE));
-    $("#single-fields").classList.toggle("hidden", MODE === "batch");
-    $("#batch-fields").classList.toggle("hidden", MODE === "single");
-    // 일괄 모드에서는 개체당 영상(N×)이 느리므로 기본 해제
-    if (MODE === "batch") {
-      const v = document.querySelector('#asset-picker input[value="video"]');
-      if (v) v.checked = false;
+    const isImport = MODE === "import";
+    $("#gen-form").classList.toggle("hidden", isImport);
+    $("#import-section").classList.toggle("hidden", !isImport);
+    if (!isImport) {
+      $("#single-fields").classList.toggle("hidden", MODE === "batch");
+      $("#batch-fields").classList.toggle("hidden", MODE === "single");
+      // 일괄 모드에서는 개체당 영상(N×)이 느리므로 기본 해제
+      if (MODE === "batch") {
+        const v = document.querySelector('#asset-picker input[value="video"]');
+        if (v) v.checked = false;
+      }
     }
     computeEstimate();
   }));
@@ -408,51 +414,68 @@ function assetFileInfo(a, variantCount, opts) {
 function computeEstimate() {
   if (!CATALOG || !STATUS) return;
   const byKey = Object.fromEntries(CATALOG.assets.map((a) => [a.key, a]));
-  const checked = $$('#asset-picker input[name="asset"]:checked').map((c) => c.value);
   const fd = new FormData($("#gen-form"));
-  const variantCount = parseInt(fd.get("variant_count") || "5", 10);
-  const scale = parseFloat(fd.get("image_scale") || "1.0");
-  const spriteSheet = fd.get("sprite_sheet") !== null;
   const model = fd.get("image_model") || "";
-
   const useOpenAIImg = model === "gpt-image-1";
   const imgLive = useOpenAIImg ? STATUS.gpt === "live" : STATUS.gemini === "live";
-  const opts = { scale, live: imgLive, spriteSheet };
+  const gptLive = STATUS.gpt === "live";
 
-  let images = 0, files = 2, bytes = 20000; // concept.json + result.json + 여유
-  checked.forEach((k) => {
-    const a = byKey[k]; if (!a) return;
-    const info = assetFileInfo(a, variantCount, opts);
-    images += info.images; files += info.files; bytes += info.bytes;
-  });
+  let images = 0, files = 0, bytes = 0, concepts = 0, hasAssets = false;
 
-  let mult = 1, extraFiles = 0, extraBytes = 0;
-  if (MODE === "batch") {
-    mult = Math.max(1, Math.min(8, parseInt(fd.get("count") || "4", 10)));
-    if (fd.get("make_codex") !== null) { extraFiles = 1; extraBytes = 5e5; } // 도감 1장
+  if (MODE === "import") {
+    // CSV 계획 전체 합산
+    const plans = IMPORT_PLANS || [];
+    plans.forEach((pl) => {
+      concepts += 1;
+      let f = 2, b = 20000, im = 0;
+      const opts = { scale: pl.image_scale, live: imgLive, spriteSheet: false };
+      (pl.assets || []).forEach((k) => {
+        const a = byKey[k]; if (!a) return;
+        const info = assetFileInfo(a, pl.variant_count, opts);
+        im += info.images; f += info.files; b += info.bytes;
+      });
+      images += im; files += f; bytes += b;
+      if ((pl.assets || []).length) hasAssets = true;
+    });
+  } else {
+    const checked = $$('#asset-picker input[name="asset"]:checked').map((c) => c.value);
+    const variantCount = parseInt(fd.get("variant_count") || "5", 10);
+    const scale = parseFloat(fd.get("image_scale") || "1.0");
+    const spriteSheet = fd.get("sprite_sheet") !== null;
+    const opts = { scale, live: imgLive, spriteSheet };
+    hasAssets = checked.length > 0;
+    let im = 0, f = 2, b = 20000; // concept.json + result.json + 여유
+    checked.forEach((k) => {
+      const a = byKey[k]; if (!a) return;
+      const info = assetFileInfo(a, variantCount, opts);
+      im += info.images; f += info.files; b += info.bytes;
+    });
+    let mult = 1, extraFiles = 0, extraBytes = 0;
+    if (MODE === "batch") {
+      mult = Math.max(1, Math.min(8, parseInt(fd.get("count") || "4", 10)));
+      if (fd.get("make_codex") !== null) { extraFiles = 1; extraBytes = 5e5; }
+    }
+    images = im * mult; files = f * mult + extraFiles; bytes = b * mult + extraBytes;
+    concepts = mult;
   }
-  images *= mult;
-  files = files * mult + extraFiles;
-  bytes = bytes * mult + extraBytes;
 
-  // 비용: 이미지 장수 × 장당 단가 + 기획(GPT) 건당. 데모(비-LIVE)는 무료.
+  // 비용: 이미지 장수 × 장당 단가 + 기획(GPT) 개체당. 데모(비-LIVE)는 무료.
   const p = STATUS.pricing || {};
   const perImg = useOpenAIImg ? (p.openai_image || 0.04) : (p.gemini_image || 0.039);
-  const gptLive = STATUS.gpt === "live";
   let usd = 0;
   if (imgLive) usd += images * perImg;
-  if (gptLive) usd += (p.gpt_concept || 0.002) * mult;
+  if (gptLive) usd += (p.gpt_concept || 0.002) * concepts;
   const krw = usd * (p.usd_krw || 1350);
 
-  LAST_ESTIMATE = { files, bytes, images, usd, krw, live: imgLive, hasAssets: checked.length > 0 };
+  LAST_ESTIMATE = { files, bytes, images, usd, krw, live: imgLive, hasAssets };
   $("#est-files").textContent = files.toLocaleString();
   $("#est-size").textContent = "~" + fmtBytes(bytes);
   $("#est-images").textContent = images.toLocaleString();
   const costEl = $("#est-cost");
   const noteEl = $("#est-note");
-  if (!checked.length) {
+  if (!hasAssets) {
     costEl.textContent = "–";
-    noteEl.textContent = "· 에셋을 선택하세요";
+    noteEl.textContent = MODE === "import" ? "· CSV를 올리세요" : "· 에셋을 선택하세요";
     noteEl.className = "est-note warnish";
   } else if (usd <= 0) {
     costEl.textContent = "무료";
@@ -769,6 +792,141 @@ function wireCompare() {
   function close2() { modal.classList.add("hidden"); }
 }
 
+// ── CSV / 스프레드시트 가져오기 ──────────────────────────
+let IMPORT_PLANS = null;  // 최근 미리보기 계획
+
+function wireImport() {
+  const input = $("#import-file"), dz = $("#drop-zone");
+  input.addEventListener("change", () => {
+    if (input.files && input.files[0]) uploadImport(input.files[0]);
+  });
+  ["dragover", "dragenter"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) =>
+    dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("over"); }));
+  dz.addEventListener("drop", (e) => {
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) uploadImport(f);
+  });
+  $("#import-run").addEventListener("click", runImport);
+}
+
+async function uploadImport(file) {
+  $("#import-fname").textContent = "분석 중… (" + file.name + ")";
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const r = await fetch("/api/import/preview", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || "분석 실패");
+    const data = await r.json();
+    IMPORT_PLANS = data.plans;
+    $("#import-fname").textContent = file.name + " · " + data.total + "행" +
+      (data.truncated ? " (50행까지만 처리)" : "");
+    renderImportPreview(data.plans);
+  } catch (err) {
+    IMPORT_PLANS = null;
+    $("#import-fname").textContent = "";
+    $("#import-preview").classList.remove("hidden");
+    $("#import-preview").innerHTML = `<div class="warn">⚠ ${err.message}</div>`;
+    $("#import-actions").classList.add("hidden");
+  }
+}
+
+function renderImportPreview(plans) {
+  const el = $("#import-preview");
+  el.classList.remove("hidden");
+  if (!plans.length) { el.innerHTML = `<div class="warn">⚠ 유효한 행이 없습니다.</div>`; return; }
+  const eLabel = (e) => (CATALOG.entity_types[e] || e);
+  el.innerHTML = `<table class="imp-table">
+    <thead><tr><th>#</th><th>타입</th><th>이름</th><th>역할</th><th>에셋</th></tr></thead>
+    <tbody>${plans.map((p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${eLabel(p.entity_type)}</td>
+        <td>${p.name || "<i>자동</i>"}</td>
+        <td>${p.role || "-"}</td>
+        <td class="imp-assets">${p.assets.map((k) => assetLabel(k)).join(", ")}
+          ${p.warnings.length ? `<span class="imp-warn" title="${p.warnings.join("\n")}">⚠${p.warnings.length}</span>` : ""}
+        </td>
+      </tr>`).join("")}</tbody>
+  </table>`;
+  $("#import-actions").classList.remove("hidden");
+  computeEstimate();
+  $("#import-summary").textContent = `${plans.length}개 개체 · ` + $("#est-images").textContent + "장 이미지";
+  $("#import-run").textContent = `✦ 전체 생성 (${plans.length})`;
+}
+
+function assetLabel(key) {
+  const a = CATALOG.assets.find((x) => x.key === key);
+  return a ? a.label : key;
+}
+
+async function runImport() {
+  if (!IMPORT_PLANS || !IMPORT_PLANS.length) return;
+  computeEstimate();
+  if (!budgetGate()) return;
+
+  const progressId = "imp_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+  const rows = IMPORT_PLANS.map((p) => ({
+    entity_type: p.entity_type, name: p.name, role: p.role, genre: p.genre,
+    art_style: p.art_style, keywords: p.keywords, assets: p.assets,
+    variant_count: p.variant_count, image_scale: p.image_scale,
+    transparent: p.transparent,
+  }));
+
+  $("#empty").classList.add("hidden");
+  $("#result").classList.add("hidden");
+  $("#loading").classList.remove("hidden");
+  $("#import-run").disabled = true;
+  $("#cancel-btn").disabled = false;
+  pollProgress(progressId);
+
+  try {
+    const r = await fetch("/api/import/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows, progress_id: progressId }),
+    });
+    if (r.status === 409) {
+      $("#result").innerHTML = `<div class="warn">✕ 생성이 취소되었습니다.</div>`;
+      $("#result").classList.remove("hidden"); return;
+    }
+    if (!r.ok) throw new Error((await r.json()).detail || "생성 실패");
+    const data = await r.json();
+    renderImportResults(data.results);
+    loadUsage(); loadBudget(); renderHistoryList();
+  } catch (err) {
+    $("#result").innerHTML = `<div class="warn">⚠ ${err.message}</div>`;
+    $("#result").classList.remove("hidden");
+  } finally {
+    stopProgress(); CURRENT_PID = null;
+    $("#loading").classList.add("hidden");
+    $("#import-run").disabled = false;
+  }
+}
+
+function renderImportResults(results) {
+  const res = $("#result");
+  res.classList.remove("hidden");
+  const eLabel = (e) => (CATALOG.entity_types[e] || e);
+  res.innerHTML = `<div class="imp-done">✓ ${results.length}개 개체 생성 완료</div>
+    <div class="imp-result-grid">${results.map((d) => {
+      const thumb = (d.assets.find((a) => a.is_image && a.category === "character")
+        || d.assets.find((a) => a.is_image) || {}).path;
+      return `<div class="imp-rcard" data-job="${d.job_id}">
+        <div class="media">${thumb ? `<img src="${FILES}${thumb}?t=${Date.now()}" loading="lazy"/>` : ""}</div>
+        <div class="irc-body">
+          <div class="entity-badge">${eLabel(d.concept.entity_type)}</div>
+          <b>${d.concept.name}</b>
+          <span class="hint sm">${d.assets.filter((a) => a.is_image).length}장 · ${d.concept.role || ""}</span>
+          <div class="irc-actions">
+            <button type="button" class="link-btn imp-view" data-url="${FILES}${d.job_id}/result.json">열기</button>
+            <a href="/api/zip/${d.job_id}" download>📦</a>
+          </div>
+        </div>
+      </div>`;
+    }).join("")}</div>`;
+}
+
 // ── 실시간 진행률 (서버 폴링) ────────────────────────────
 let progressTimer = null;
 let CURRENT_PID = null;
@@ -906,6 +1064,15 @@ $("#result").addEventListener("click", async (e) => {
   if (editBtn) { openEditor(editBtn.closest(".asset-card")); return; }
   const cmpBtn = e.target.closest(".compare-btn");
   if (cmpBtn) { openCompare(cmpBtn.dataset.compare); return; }
+  const viewBtn = e.target.closest(".imp-view");
+  if (viewBtn) {
+    try {
+      const data = await (await fetch(viewBtn.dataset.url + "?t=" + Date.now())).json();
+      renderResult(data);
+      $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) { alert("불러오기 실패: " + err.message); }
+    return;
+  }
 
   const btn = e.target.closest(".regen-btn");
   if (!btn || !CURRENT_JOB_ID) return;
