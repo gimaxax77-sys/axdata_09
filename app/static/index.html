@@ -15,7 +15,10 @@
         <p>GPT · Gemini · CapCut 캐릭터 / 몬스터 / NPC 아트 자동 제작</p>
       </div>
     </div>
-    <div id="status" class="status-pills"></div>
+    <div class="topbar-right">
+      <div id="usage" class="usage-bar" title="이 앱에서 생성한 사용량 기준 예상치입니다. 실제 잔액은 각 콘솔에서 확인하세요."></div>
+      <div id="status" class="status-pills"></div>
+    </div>
   </header>
 
   <main class="layout">
@@ -54,24 +57,31 @@
 
         <div class="row2">
           <label>장르
-            <select name="genre">
-              <option value="fantasy">판타지</option>
-              <option value="sci-fi">SF</option>
-              <option value="cyberpunk">사이버펑크</option>
-            </select>
+            <select name="genre" id="genre-select"><!-- JS로 채움 --></select>
           </label>
           <label id="role-label">직업 / 역할
             <input name="role" type="text" placeholder="예: 전사, 드래곤…" />
           </label>
         </div>
 
-        <label>아트 스타일
-          <input name="art_style" type="text" value="semi-realistic digital painting" />
+        <label>아트 스타일 <span class="hint">(목록 선택 또는 직접 입력)</span>
+          <input name="art_style" type="text" list="art-style-list"
+                 value="semi-realistic digital painting" />
+          <datalist id="art-style-list"><!-- JS로 채움 --></datalist>
         </label>
 
-        <label>추가 키워드 <span class="hint">(쉼표 구분)</span>
-          <input name="keywords" type="text" placeholder="예: 얼음, 늑대, 은빛 갑옷" />
-        </label>
+        <div class="row2">
+          <label>추가 키워드 <span class="hint">(쉼표)</span>
+            <input name="keywords" type="text" placeholder="예: 얼음, 늑대" />
+          </label>
+          <label>이미지 크기
+            <select name="image_scale">
+              <option value="1.0">표준 (빠름)</option>
+              <option value="1.5">크게 (고해상)</option>
+              <option value="0.75">작게 (절약)</option>
+            </select>
+          </label>
+        </div>
 
         <h2 class="mt">2. 생성할 아트 요소
           <span class="select-actions">

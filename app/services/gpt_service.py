@@ -100,6 +100,16 @@ def _generate_with_openai(req, entity, settings) -> EntityConcept:
             {"role": "user", "content": _build_user_brief(req)},
         ],
     )
+    # 사용량 기록 (예상 비용 표시용)
+    try:
+        from . import usage
+        u = getattr(resp, "usage", None)
+        if u is not None:
+            usage.record_openai(getattr(u, "prompt_tokens", 0),
+                                getattr(u, "completion_tokens", 0))
+    except Exception:
+        pass
+
     data = json.loads(resp.choices[0].message.content)
     return _coerce_concept(data, req, entity)
 
@@ -243,6 +253,11 @@ def _palette_for(genre: str) -> list[str]:
         "fantasy": ["#2E1A47", "#6D466B", "#C89B3C", "#E6D5B8", "#8B2635"],
         "sci-fi": ["#0B132B", "#1C2541", "#3A506B", "#5BC0BE", "#E0FBFC"],
         "cyberpunk": ["#0D0221", "#FF2A6D", "#05D9E8", "#D1F7FF", "#7700A6"],
+        "wuxia": ["#1A2A2E", "#3E5C57", "#8FB9A8", "#E8D8B0", "#A63A2E"],
+        "steampunk": ["#2B1D12", "#6B4A2B", "#B8863B", "#D9C6A5", "#3A5A5C"],
+        "fairytale": ["#3B2E5A", "#8C6BA6", "#F3A0C0", "#FCE6B8", "#7FB0A0"],
+        "horror": ["#0A0A0C", "#26161A", "#5A1E24", "#8A8A8A", "#B03030"],
+        "post-apoc": ["#241F1A", "#4A3F33", "#8A7A55", "#B5A688", "#7A4A3A"],
     }
     return palettes.get(genre.lower(), palettes["fantasy"])
 

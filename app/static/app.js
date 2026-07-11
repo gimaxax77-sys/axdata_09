@@ -24,7 +24,45 @@ async function init() {
   CATALOG = await (await fetch("/api/catalog")).json();
   renderEntityTabs();
   renderAssetPicker();
+  renderGenres();
+  renderArtStyles();
   wireModeToggle();
+  loadUsage();
+}
+
+function renderGenres() {
+  const sel = $("#genre-select");
+  if (!sel || !CATALOG.genres) return;
+  sel.innerHTML = Object.entries(CATALOG.genres)
+    .map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+}
+
+function renderArtStyles() {
+  const dl = $("#art-style-list");
+  if (!dl || !CATALOG.art_styles) return;
+  dl.innerHTML = CATALOG.art_styles.map((s) => `<option value="${s}">`).join("");
+}
+
+// ── 사용량·예상 비용 ─────────────────────────────────────
+async function loadUsage() {
+  try { renderUsage(await (await fetch("/api/usage")).json()); } catch (e) {}
+}
+function fmtNum(n) { return n >= 1000 ? (n / 1000).toFixed(1) + "K" : String(n); }
+function renderUsage(u) {
+  const el = $("#usage");
+  if (!el) return;
+  const krw = "~₩" + (u.total_krw || 0).toLocaleString();
+  el.innerHTML = `
+    <span class="u-item" title="GPT 토큰 사용량">📝 ${fmtNum(u.openai.tokens)}</span>
+    <span class="u-item" title="생성한 이미지 수">🖼️ ${u.gemini.images}</span>
+    <span class="u-total">~$${u.total_usd.toFixed(2)} <em>${krw}</em></span>
+    <a href="#" id="usage-reset" title="집계 초기화">↺</a>`;
+  const r = $("#usage-reset");
+  if (r) r.addEventListener("click", async (e) => {
+    e.preventDefault();
+    await fetch("/api/usage/reset", { method: "POST" });
+    loadUsage();
+  });
 }
 
 function wireModeToggle() {
@@ -136,6 +174,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
   if (!assets.length) { alert("아트 요소를 하나 이상 선택하세요."); return; }
 
   const batch = MODE === "batch";
+  const imageScale = parseFloat(fd.get("image_scale") || "1.0");
   let url, payload;
   if (batch) {
     const roles = (fd.get("roles") || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -147,6 +186,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       count: Math.max(1, Math.min(8, parseInt(fd.get("count") || "4", 10))),
       roles, names: [], assets,
       make_codex: fd.get("make_codex") !== null,
+      image_scale: imageScale,
     };
   } else {
     url = "/api/generate";
@@ -155,6 +195,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       role: fd.get("role") || "",
       art_style: fd.get("art_style") || "semi-realistic digital painting",
       keywords: fd.get("keywords") || "", assets,
+      image_scale: imageScale,
     };
   }
 
@@ -172,6 +213,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
     if (!res.ok) throw new Error((await res.json()).detail || "생성 실패");
     const data = await res.json();
     if (batch) renderBatch(data); else renderResult(data);
+    loadUsage();
   } catch (err) {
     $("#result").innerHTML = `<div class="warn">⚠ ${err.message}</div>`;
     $("#result").classList.remove("hidden");

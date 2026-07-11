@@ -19,6 +19,9 @@ class GenerationRequest(BaseModel):
     # 생성할 에셋 키 목록 (asset_catalog 참조). 비우면 엔티티 기본값 사용.
     assets: list[str] = Field(default_factory=list)
 
+    # 이미지 해상도 배율 (1.0=표준, 1.5=크게)
+    image_scale: float = Field(1.0, ge=0.5, le=2.0)
+
 
 class Stat(BaseModel):
     name: str
@@ -79,6 +82,7 @@ class BatchRequest(BaseModel):
     names: list[str] = Field(default_factory=list, description="개체별 이름 (선택)")
     assets: list[str] = Field(default_factory=list, description="각 개체에 적용할 에셋")
     make_codex: bool = Field(True, description="도감 오버뷰 이미지 생성")
+    image_scale: float = Field(1.0, ge=0.5, le=2.0)
 
 
 class BatchResult(BaseModel):

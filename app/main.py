@@ -1,7 +1,9 @@
 """FastAPI 앱 — 웹 UI 서빙 + 생성 API."""
 from __future__ import annotations
 
+import re
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -10,7 +12,20 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .models import BatchRequest, BatchResult, GenerationRequest, GenerationResult
-from .services import asset_catalog, pipeline
+from .services import asset_catalog, pipeline, usage
+
+
+def _slug(text: str) -> str:
+    """폴더명에 안전한 슬러그 (한글 허용, 특수문자만 제거)."""
+    text = (text or "").strip()
+    text = re.sub(r"[^\w가-힣\- ]", "", text).replace(" ", "-")
+    return text[:24] or "untitled"
+
+
+def _job_id(prefix: str, label: str) -> str:
+    """읽기 쉬운 폴더명: <prefix>_<label>_<날짜시각>."""
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"{prefix}_{_slug(label)}_{ts}"
 
 settings = get_settings()
 
@@ -53,9 +68,22 @@ def catalog() -> dict:
     return asset_catalog.catalog_payload()
 
 
+@app.get("/api/usage")
+def get_usage() -> dict:
+    """이 앱에서 생성한 사용량 + 예상 비용 (실제 잔액 아님)."""
+    return usage.snapshot(settings)
+
+
+@app.post("/api/usage/reset")
+def reset_usage() -> dict:
+    usage.reset()
+    return usage.snapshot(settings)
+
+
 @app.post("/api/generate", response_model=GenerationResult)
 def generate(req: GenerationRequest) -> GenerationResult:
-    job_id = uuid.uuid4().hex[:12]
+    label = req.name or req.role or req.entity_type
+    job_id = _job_id(req.entity_type, label)
     try:
         result = pipeline.run_pipeline(req, settings, job_id)
     except Exception as exc:  # pragma: no cover - top-level guard
@@ -66,7 +94,7 @@ def generate(req: GenerationRequest) -> GenerationResult:
 @app.post("/api/generate_batch", response_model=BatchResult)
 def generate_batch(req: BatchRequest) -> BatchResult:
     """일괄 생성 — 여러 개체 + 도감 오버뷰."""
-    batch_id = "batch_" + uuid.uuid4().hex[:10]
+    batch_id = _job_id("batch-" + req.entity_type, req.genre)
     try:
         result = pipeline.run_batch(req, settings, batch_id)
     except Exception as exc:  # pragma: no cover - top-level guard

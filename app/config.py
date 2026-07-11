@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
+    # ── 가격(예상 비용 추정용, 실제 청구액과 다를 수 있음) ─────────────
+    # 단위: USD. 토큰 단가는 100만 토큰당 가격.
+    openai_price_in: float = 0.15      # gpt-4o-mini 입력 기준(예시)
+    openai_price_out: float = 0.60     # gpt-4o-mini 출력 기준(예시)
+    gemini_price_image: float = 0.039  # 이미지 1장당(예시)
+    usd_krw: float = 1350.0            # 원화 환산 환율(표시용)
+
     @property
     def output_path(self) -> Path:
         p = Path(self.output_dir)

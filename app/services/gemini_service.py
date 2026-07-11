@@ -37,9 +37,12 @@ def generate_asset(
     concept: EntityConcept,
     job_dir: Path,
     settings: Settings,
+    scale: float = 1.0,
 ) -> list[ImageResult]:
-    """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장."""
+    """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장. scale 로 해상도 조절."""
     variants = spec.variants or ("",)
+    w, h = spec.size
+    size = (max(64, int(w * scale)), max(64, int(h * scale)))
     results: list[ImageResult] = []
     for i, variant in enumerate(variants):
         prompt = cat.build_prompt(
@@ -54,7 +57,7 @@ def generate_asset(
         out = job_dir / f"{spec.key}{suffix}.png"
         label = f"{spec.label} · {variant}" if variant else spec.label
         is_real = _generate_image(
-            prompt, out, spec.size, settings,
+            prompt, out, size, settings,
             placeholder=spec.placeholder,
             label=f"{concept.name}" + (f" · {variant}" if variant else f" · {spec.label}"),
             palette=concept.color_palette,
@@ -108,6 +111,11 @@ def _generate_with_gemini(prompt, out_path, size, settings) -> bool:
             if inline and inline.data:
                 img = Image.open(_as_bytesio(inline.data)).convert("RGB")
                 _fit(img, size).save(out_path)
+                try:
+                    from . import usage
+                    usage.record_gemini_image(1)
+                except Exception:
+                    pass
                 return True
     return False
 

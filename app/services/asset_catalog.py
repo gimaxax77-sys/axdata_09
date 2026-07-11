@@ -24,6 +24,33 @@ CATEGORIES = {
     "composite": "통합 산출물",
 }
 
+# 장르 (UI 드롭다운). 실제 API 는 모든 장르를 프롬프트에 반영한다.
+GENRES = {
+    "fantasy": "판타지",
+    "sci-fi": "SF",
+    "cyberpunk": "사이버펑크",
+    "wuxia": "무협",
+    "steampunk": "스팀펑크",
+    "fairytale": "동화풍",
+    "horror": "호러",
+    "post-apoc": "포스트아포칼립스",
+}
+
+# 아트 스타일 프리셋 (자유 입력도 가능)
+ART_STYLES = [
+    "semi-realistic digital painting",
+    "anime cel shading",
+    "watercolor illustration",
+    "oil painting",
+    "3D render",
+    "pixel art",
+    "cartoon / cel-shaded",
+    "dark fantasy concept art",
+    "cinematic concept art",
+    "chibi / cute",
+    "comic / ink",
+]
+
 ALL_ENTITIES = frozenset(ENTITY_TYPES)
 
 
@@ -238,6 +265,8 @@ def catalog_payload() -> dict:
     return {
         "entity_types": ENTITY_TYPES,
         "categories": CATEGORIES,
+        "genres": GENRES,
+        "art_styles": ART_STYLES,
         "assets": [
             {
                 "key": s.key,
