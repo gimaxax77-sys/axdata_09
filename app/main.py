@@ -9,8 +9,8 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .models import CharacterRequest, GenerationResult
-from .services import pipeline
+from .models import GenerationRequest, GenerationResult
+from .services import asset_catalog, pipeline
 
 settings = get_settings()
 
@@ -47,8 +47,14 @@ def status() -> dict:
     }
 
 
+@app.get("/api/catalog")
+def catalog() -> dict:
+    """엔티티 타입 + 생성 가능한 에셋 카탈로그."""
+    return asset_catalog.catalog_payload()
+
+
 @app.post("/api/generate", response_model=GenerationResult)
-def generate(req: CharacterRequest) -> GenerationResult:
+def generate(req: GenerationRequest) -> GenerationResult:
     job_id = uuid.uuid4().hex[:12]
     try:
         result = pipeline.run_pipeline(req, settings, job_id)

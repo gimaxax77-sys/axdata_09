@@ -16,50 +16,51 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from ..models import CharacterConcept
+from ..models import EntityConcept
 from .fonts import load_font
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 스토리보드 (씬 구성) — CapCut draft 와 미리보기 영상이 공유
 # ─────────────────────────────────────────────────────────────────────
-def build_storyboard(concept: CharacterConcept, images: dict[str, Path]) -> list[dict]:
+def build_storyboard(concept: EntityConcept, images: dict[str, Path]) -> list[dict]:
+    """picks 이미지(portrait/fullbody/icon)로 4씬 스토리보드를 구성.
+
+    scene["key"] 는 images 딕셔너리 조회용 논리 키,
+    scene["image"] 는 draft assets 폴더의 실제 파일명이다.
+    """
+    look_label = "형상" if concept.entity_type == "monster" else "외형"
+    ability_label = "공격 패턴" if concept.entity_type == "monster" else "능력"
+
+    def fname(key: str) -> str:
+        p = images.get(key)
+        return p.name if p else f"{key}.png"
+
     scenes = []
     if images.get("portrait"):
         scenes.append({
-            "image": "portrait.png",
-            "duration": 3.0,
-            "transition": "fade",
-            "effect": "zoom_in",
-            "title": concept.name,
-            "subtitle": concept.title or concept.role,
+            "key": "portrait", "image": fname("portrait"),
+            "duration": 3.0, "transition": "fade", "effect": "zoom_in",
+            "title": concept.name, "subtitle": concept.title or concept.role,
         })
     if images.get("fullbody"):
         scenes.append({
-            "image": "fullbody.png",
-            "duration": 3.0,
-            "transition": "slide_left",
-            "effect": "pan_up",
-            "title": "외형",
+            "key": "fullbody", "image": fname("fullbody"),
+            "duration": 3.0, "transition": "slide_left", "effect": "pan_up",
+            "title": look_label,
             "subtitle": (concept.tagline or concept.appearance)[:40],
         })
     if images.get("icon"):
         scenes.append({
-            "image": "icon.png",
-            "duration": 2.5,
-            "transition": "fade",
-            "effect": "zoom_out",
-            "title": "능력",
-            "subtitle": " · ".join(concept.abilities[:3]),
+            "key": "icon", "image": fname("icon"),
+            "duration": 2.5, "transition": "fade", "effect": "zoom_out",
+            "title": ability_label, "subtitle": " · ".join(concept.abilities[:3]),
         })
     if images.get("portrait"):
         scenes.append({
-            "image": "portrait.png",
-            "duration": 3.0,
-            "transition": "fade",
-            "effect": "zoom_in",
-            "title": concept.name,
-            "subtitle": f"{concept.genre} · {concept.role}",
+            "key": "portrait", "image": fname("portrait"),
+            "duration": 3.0, "transition": "fade", "effect": "zoom_in",
+            "title": concept.name, "subtitle": f"{concept.genre} · {concept.role}",
         })
     return scenes
 
@@ -68,7 +69,7 @@ def build_storyboard(concept: CharacterConcept, images: dict[str, Path]) -> list
 # CapCut draft 생성
 # ─────────────────────────────────────────────────────────────────────
 def build_capcut_draft(
-    concept: CharacterConcept,
+    concept: EntityConcept,
     images: dict[str, Path],
     draft_dir: Path,
     storyboard: list[dict],
@@ -147,28 +148,33 @@ def _build_native_draft(concept, assets_dir, draft_dir, storyboard) -> bool:
 # 미리보기 영상 (Pillow → GIF, 선택적 MP4)
 # ─────────────────────────────────────────────────────────────────────
 def build_preview_video(
-    concept: CharacterConcept,
+    concept: EntityConcept,
     images: dict[str, Path],
     storyboard: list[dict],
     out_gif: Path,
     out_mp4: Path | None = None,
     *,
-    fps: int = 12,
-    canvas: tuple[int, int] = (720, 1280),
+    fps: int = 10,
+    canvas: tuple[int, int] = (540, 960),
 ) -> tuple[Path, Path | None]:
-    """Ken Burns 슬라이드쇼 애니메이션을 만든다. (gif_path, mp4_path|None)."""
+    """Ken Burns 슬라이드쇼 애니메이션을 만든다. (gif_path, mp4_path|None).
+
+    성능: 씬마다 커버 이미지를 한 번만 리사이즈하고(프레임마다 X),
+    자막용 그라데이션은 캔버스당 한 번만 계산해 재사용한다.
+    """
     frames: list[Image.Image] = []
     accent = _accent(concept)
+    grad = _darken_gradient(canvas)  # 캔버스당 1회 계산
 
     for scene in storyboard:
         img_path = _resolve_scene_image(scene, images)
         if not img_path or not img_path.exists():
             continue
-        base = Image.open(img_path).convert("RGB")
+        big = _cover(Image.open(img_path).convert("RGB"), canvas)  # 씬당 1회 리사이즈
         n = max(1, int(scene["duration"] * fps))
         for i in range(n):
             p = i / max(1, n - 1)
-            frame = _ken_burns_frame(base, canvas, scene["effect"], p, accent)
+            frame = _ken_burns_frame(big, canvas, scene["effect"], p, grad)
             _overlay_text(frame, scene.get("title", ""), scene.get("subtitle", ""),
                           accent, fade=_fade_alpha(p))
             frames.append(frame)
@@ -177,9 +183,11 @@ def build_preview_video(
         frames = [Image.new("RGB", canvas, (18, 16, 28))]
 
     out_gif.parent.mkdir(parents=True, exist_ok=True)
-    frames[0].save(
-        out_gif, save_all=True, append_images=frames[1:],
-        duration=int(1000 / fps), loop=0, optimize=True,
+    # GIF: 팔레트 고정 변환으로 인코딩 속도 개선(optimize 생략)
+    paletted = [f.convert("P", palette=Image.ADAPTIVE, colors=128) for f in frames]
+    paletted[0].save(
+        out_gif, save_all=True, append_images=paletted[1:],
+        duration=int(1000 / fps), loop=0, optimize=False, disposal=2,
     )
 
     mp4_path = None
@@ -187,6 +195,25 @@ def build_preview_video(
         mp4_path = _try_mp4(frames, out_mp4, fps)
 
     return out_gif, mp4_path
+
+
+def _cover(base: Image.Image, canvas: tuple[int, int]) -> Image.Image:
+    """캔버스를 덮도록(여유 1.25배) 한 번만 리사이즈."""
+    cw, ch = canvas
+    iw, ih = base.size
+    cover = max(cw / iw, ch / ih) * 1.25
+    return base.resize((int(iw * cover), int(ih * cover)), Image.LANCZOS)
+
+
+def _darken_gradient(canvas: tuple[int, int]) -> Image.Image:
+    """하단 자막 가독성용 어둠 그라데이션 마스크 (캔버스당 1회)."""
+    cw, ch = canvas
+    col = Image.new("L", (1, ch), 0)
+    px = col.load()
+    for y in range(ch):
+        t = max(0.0, (y / ch - 0.55) / 0.45)
+        px[0, y] = int(180 * t)
+    return col.resize((cw, ch))
 
 
 def _try_mp4(frames, out_mp4: Path, fps: int) -> Path | None:
@@ -212,13 +239,10 @@ def _to_array(img: Image.Image):
 
 
 # ── Ken Burns & 오버레이 ──────────────────────────────────────────────
-def _ken_burns_frame(base, canvas, effect, p, accent) -> Image.Image:
+def _ken_burns_frame(big, canvas, effect, p, grad) -> Image.Image:
+    """미리 리사이즈된 big 이미지에서 뷰포트를 크롭 → 캔버스 크기로."""
     cw, ch = canvas
-    # 캔버스를 덮도록 크게 리사이즈
-    iw, ih = base.size
-    cover = max(cw / iw, ch / ih) * 1.25
-    bw, bh = int(iw * cover), int(ih * cover)
-    big = base.resize((bw, bh), Image.LANCZOS)
+    bw, bh = big.size
 
     zoom = 1.0 + 0.12 * (p if "in" in effect else (1 - p) if "out" in effect else 0)
     vw, vh = int(cw / zoom), int(ch / zoom)
@@ -229,21 +253,12 @@ def _ken_burns_frame(base, canvas, effect, p, accent) -> Image.Image:
         oy = int((bh - vh) * p)
     else:
         oy = (bh - vh) // 2
-    ox = (bw - vw) // 2
-    ox = max(0, min(ox, bw - vw))
+    ox = max(0, min((bw - vw) // 2, bw - vw))
     oy = max(0, min(oy, bh - vh))
 
-    crop = big.crop((ox, oy, ox + vw, oy + vh)).resize((cw, ch), Image.LANCZOS)
-
-    # 하단 그라데이션(자막 가독성)
-    grad = Image.new("L", (1, ch), 0)
-    for y in range(ch):
-        t = max(0.0, (y / ch - 0.55) / 0.45)
-        grad.putpixel((0, y), int(180 * t))
-    grad = grad.resize((cw, ch))
+    crop = big.crop((ox, oy, ox + vw, oy + vh)).resize((cw, ch), Image.BILINEAR)
     dark = Image.new("RGB", (cw, ch), (10, 8, 18))
-    crop = Image.composite(dark, crop, grad)
-    return crop
+    return Image.composite(dark, crop, grad)
 
 
 def _overlay_text(frame, title, subtitle, accent, fade=255) -> None:
@@ -275,11 +290,11 @@ def _fade_alpha(p: float) -> int:
 
 
 def _resolve_scene_image(scene, images) -> Path | None:
-    name = scene["image"].replace(".png", "")
-    return images.get(name)
+    key = scene.get("key") or scene["image"].replace(".png", "")
+    return images.get(key)
 
 
-def _accent(concept: CharacterConcept) -> tuple[int, int, int]:
+def _accent(concept: EntityConcept) -> tuple[int, int, int]:
     palette = concept.color_palette
     hexc = palette[2] if len(palette) > 2 else (palette[0] if palette else "#C89B3C")
     h = hexc.lstrip("#")
@@ -299,7 +314,7 @@ def _bgm_hint(genre: str) -> str:
     }.get(genre.lower(), "에픽 트레일러 BGM")
 
 
-def _draft_readme(concept: CharacterConcept) -> str:
+def _draft_readme(concept: EntityConcept) -> str:
     return (
         f"{concept.name} — CapCut 쇼케이스 draft\n"
         "====================================\n\n"

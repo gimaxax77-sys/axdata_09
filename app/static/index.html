@@ -12,7 +12,7 @@
       <span class="logo">◈</span>
       <div>
         <h1>AXData Studio</h1>
-        <p>GPT · Gemini · CapCut 캐릭터/게임 아트 자동 제작</p>
+        <p>GPT · Gemini · CapCut 캐릭터 / 몬스터 / NPC 아트 자동 제작</p>
       </div>
     </div>
     <div id="status" class="status-pills"></div>
@@ -21,39 +21,44 @@
   <main class="layout">
     <!-- 입력 폼 -->
     <section class="panel form-panel">
-      <h2>캐릭터 설정</h2>
+      <h2>1. 대상 설정</h2>
       <form id="gen-form">
+        <div class="entity-tabs" id="entity-tabs">
+          <!-- JS로 채움 -->
+        </div>
+
         <label>이름 <span class="hint">(비우면 자동 생성)</span>
-          <input name="name" type="text" placeholder="예: 카엘, 세라핀…" />
+          <input name="name" type="text" placeholder="예: 카엘, 카론, 바르트…" />
         </label>
 
-        <label>장르
-          <select name="genre">
-            <option value="fantasy">판타지</option>
-            <option value="sci-fi">SF</option>
-            <option value="cyberpunk">사이버펑크</option>
-          </select>
-        </label>
-
-        <label>직업 / 역할
-          <input name="role" type="text" placeholder="예: 전사, 마법사, 해커…" />
-        </label>
+        <div class="row2">
+          <label>장르
+            <select name="genre">
+              <option value="fantasy">판타지</option>
+              <option value="sci-fi">SF</option>
+              <option value="cyberpunk">사이버펑크</option>
+            </select>
+          </label>
+          <label id="role-label">직업 / 역할
+            <input name="role" type="text" placeholder="예: 전사, 드래곤…" />
+          </label>
+        </div>
 
         <label>아트 스타일
-          <input name="art_style" type="text"
-                 value="semi-realistic digital painting" />
+          <input name="art_style" type="text" value="semi-realistic digital painting" />
         </label>
 
         <label>추가 키워드 <span class="hint">(쉼표 구분)</span>
           <input name="keywords" type="text" placeholder="예: 얼음, 늑대, 은빛 갑옷" />
         </label>
 
-        <fieldset class="outputs">
-          <legend>산출물</legend>
-          <label class="chk"><input type="checkbox" name="make_sheet" checked /> 캐릭터 시트 (PNG/PDF)</label>
-          <label class="chk"><input type="checkbox" name="make_assets" checked /> 게임 아트 에셋</label>
-          <label class="chk"><input type="checkbox" name="make_video" checked /> 쇼케이스 영상</label>
-        </fieldset>
+        <h2 class="mt">2. 생성할 아트 요소
+          <span class="select-actions">
+            <a href="#" id="sel-all">전체</a> · <a href="#" id="sel-none">해제</a> ·
+            <a href="#" id="sel-default">기본</a>
+          </span>
+        </h2>
+        <div id="asset-picker" class="asset-picker"><!-- JS로 채움 --></div>
 
         <button type="submit" id="submit-btn">✦ 생성하기</button>
       </form>
@@ -64,16 +69,16 @@
     <section class="panel result-panel">
       <div id="empty" class="empty">
         <div class="empty-art">◈</div>
-        <p>왼쪽에서 캐릭터를 설정하고<br /><b>생성하기</b>를 눌러보세요.</p>
+        <p>대상과 아트 요소를 선택하고<br /><b>생성하기</b>를 눌러보세요.</p>
       </div>
 
       <div id="loading" class="loading hidden">
         <div class="spinner"></div>
-        <p id="loading-text">GPT가 캐릭터를 기획하는 중…</p>
+        <p id="loading-text">기획하는 중…</p>
         <ul id="steps" class="steps">
-          <li data-step="gpt">캐릭터 기획 (GPT)</li>
+          <li data-step="gpt">기획 (GPT)</li>
           <li data-step="gemini">아트 생성 (Gemini)</li>
-          <li data-step="sheet">캐릭터 시트 조합</li>
+          <li data-step="sheet">시트 조합</li>
           <li data-step="video">CapCut 영상 구성</li>
         </ul>
       </div>

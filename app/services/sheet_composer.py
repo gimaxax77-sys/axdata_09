@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from ..models import CharacterConcept
+from ..models import EntityConcept
 from .fonts import load_font
 
 # A4 세로 비율에 가까운 캔버스
@@ -19,6 +19,13 @@ BG = (18, 16, 28)
 CARD = (30, 27, 45)
 INK = (232, 228, 240)
 SUB = (168, 162, 190)
+
+# 엔티티별 섹션 라벨 (외형/성격/배경)
+_SECTION_LABELS = {
+    "character": ("외형", "성격", "배경 이야기"),
+    "monster": ("외형", "행동 양식", "서식지 · 전승"),
+    "npc": ("외형", "성향", "배경"),
+}
 
 
 def _hex_to_rgb(h: str) -> tuple[int, int, int]:
@@ -58,7 +65,7 @@ def _text_block(draw, xy, text, font, fill, max_w, line_gap=8) -> int:
 
 
 def compose_sheet(
-    concept: CharacterConcept,
+    concept: EntityConcept,
     images: dict[str, Path],
     out_png: Path,
     out_pdf: Path | None = None,
@@ -77,11 +84,19 @@ def compose_sheet(
     f_stat = load_font(24, bold=True)
 
     # ── 헤더 ─────────────────────────────────────────────
+    from . import asset_catalog as cat
+    entity_label = cat.ENTITY_TYPES.get(concept.entity_type, "캐릭터")
     draw.rectangle([0, 0, W, 170], fill=CARD)
     draw.rectangle([0, 170, W, 176], fill=accent)
     draw.text((MARGIN, 40), concept.name or "이름 없는 영웅", font=f_title, fill=INK)
     subtitle = " · ".join(x for x in [concept.title, concept.role, concept.genre] if x)
     draw.text((MARGIN, 118), subtitle, font=f_sub, fill=accent)
+    # 엔티티 타입 배지 (우상단)
+    badge = load_font(24, bold=True)
+    bw = draw.textlength(entity_label, font=badge)
+    draw.rounded_rectangle([W - MARGIN - bw - 32, 44, W - MARGIN, 92],
+                           radius=14, fill=accent)
+    draw.text((W - MARGIN - bw - 16, 52), entity_label, font=badge, fill=(20, 18, 30))
 
     # ── 좌측: 초상화 + 스탯 ──────────────────────────────
     col_x = MARGIN
@@ -136,17 +151,38 @@ def compose_sheet(
         ry = _text_block(draw, (rx, ry), text, f_body, INK, rw)
         return ry + 22
 
-    ry = section("외형", concept.appearance, ry)
-    ry = section("성격", concept.personality, ry)
-    ry = section("배경 이야기", concept.backstory, ry)
+    s_look, s_mind, s_back = _SECTION_LABELS.get(concept.entity_type,
+                                                 _SECTION_LABELS["character"])
+    ry = section(s_look, concept.appearance, ry)
+    ry = section(s_mind, concept.personality, ry)
+    ry = section(s_back, concept.backstory, ry)
 
-    # 능력
-    draw.text((rx, ry), "시그니처 능력", font=f_h, fill=accent)
+    # 능력 / 공격 패턴
+    ability_label = "공격 패턴" if concept.entity_type == "monster" else "시그니처 능력"
+    draw.text((rx, ry), ability_label, font=f_h, fill=accent)
     ry += 44
     for ab in concept.abilities:
         draw.ellipse([rx, ry + 8, rx + 10, ry + 18], fill=accent)
         _text_block(draw, (rx + 24, ry), ab, f_body, INK, rw - 24)
         ry += f_body.size + 16
+
+    # 엔티티별 부가 정보 (위협도/서식지, 직업/소속 등)
+    if concept.extra:
+        ry += 14
+        draw.text((rx, ry), "INFO", font=f_h, fill=accent)
+        ry += 46
+        for item in concept.extra[:4]:
+            draw.text((rx, ry), f"{item.label}", font=load_font(21, bold=True), fill=accent)
+            lbl_w = draw.textlength(f"{item.label}", font=load_font(21, bold=True))
+            # 라벨과 값을 같은 줄에 두되, 길면 다음 줄로
+            val_x = rx + max(140, lbl_w + 24)
+            if draw.textlength(item.value, font=f_small) <= rw - (val_x - rx):
+                draw.text((val_x, ry + 1), item.value, font=f_small, fill=INK)
+                ry += 34
+            else:
+                ry += 30
+                ry = _text_block(draw, (rx + 16, ry), item.value, f_small, INK, rw - 16, line_gap=4)
+                ry += 8
 
     # ── 하단: 전신 + 아이콘 썸네일 ───────────────────────
     fy = H - 400
