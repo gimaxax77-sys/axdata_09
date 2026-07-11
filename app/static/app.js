@@ -285,6 +285,7 @@ function wireModeToggle() {
     const isImport = MODE === "import";
     $("#gen-form").classList.toggle("hidden", isImport);
     $("#import-section").classList.toggle("hidden", !isImport);
+    $("#pform-foot").classList.toggle("hidden", isImport);
     if (!isImport) {
       $("#single-fields").classList.toggle("hidden", MODE === "batch");
       $("#batch-fields").classList.toggle("hidden", MODE === "single");
@@ -338,9 +339,9 @@ function renderAssetPicker() {
 
   $("#asset-picker").innerHTML = Object.keys(cats)
     .filter((c) => grouped[c])
-    .map((c) => `
-      <div class="asset-group">
-        <div class="group-title">${cats[c]}</div>
+    .map((c, idx) => `
+      <details class="asset-group" ${idx < 2 ? "open" : ""}>
+        <summary>${cats[c]} <span class="cnt">(${grouped[c].length})</span></summary>
         <div class="group-items">
           ${grouped[c].map((a) => {
             const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
@@ -350,7 +351,7 @@ function renderAssetPicker() {
               <span>${a.label}${badge ? `<i>${badge}</i>` : ""}</span>
             </label>`; }).join("")}
         </div>
-      </div>`).join("");
+      </details>`).join("");
 
   // 일괄 모드에서는 개체당 영상(N×)이 느리므로 기본 해제
   if (MODE === "batch") {

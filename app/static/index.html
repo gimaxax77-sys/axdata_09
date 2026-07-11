@@ -57,140 +57,164 @@
   <main class="layout3">
     <!-- ── 좌: 생성 옵션 ── -->
     <section class="pane pane-form">
-      <div class="mode-toggle" id="mode-toggle">
-        <button type="button" class="mtab on" data-m="single">단일 생성</button>
-        <button type="button" class="mtab" data-m="batch">일괄 · 도감</button>
-        <button type="button" class="mtab" data-m="import">CSV 가져오기</button>
-      </div>
-
-      <!-- ── CSV / 스프레드시트 가져오기 ── -->
-      <div id="import-section" class="import-section hidden">
-        <p class="hint">표를 채워 올리면 <b>내용을 분석해 필요한 아트를 자동 설정</b>하고 일괄 생성합니다.</p>
-        <a href="/api/template.csv" class="mini-btn dl-tmpl" download>⬇ 표준 양식(CSV) 다운로드</a>
-        <label id="drop-zone" class="drop-zone">
-          <input type="file" id="import-file" accept=".csv,.xlsx,.xlsm" hidden />
-          <span class="dz-icon">📄</span>
-          <span class="dz-text">CSV / 엑셀(.xlsx) 파일을 선택하거나 여기로 드래그</span>
-          <span id="import-fname" class="hint sm"></span>
-        </label>
-        <div id="import-preview" class="import-preview hidden"></div>
-        <div id="import-actions" class="import-actions hidden">
-          <span id="import-summary" class="hint sm"></span>
-          <button type="button" id="import-run" class="mini-btn">✦ 전체 생성</button>
+      <div class="pform-head">
+        <div class="mode-toggle" id="mode-toggle">
+          <button type="button" class="mtab on" data-m="single">단일 생성</button>
+          <button type="button" class="mtab" data-m="batch">일괄 · 도감</button>
+          <button type="button" class="mtab" data-m="import">CSV 가져오기</button>
         </div>
-        <details class="cautions import-guide">
-          <summary>📋 양식 작성 가이드</summary>
-          <ul>
-            <li><b>타입</b>: 캐릭터 / 몬스터 / NPC</li>
-            <li><b>용도</b>: rpg · 카드 · 2d · 도감 · 프로필 · ui · 풀세트 중 하나 → 필요한 에셋 자동 선택</li>
-            <li><b>에셋</b>(선택): 직접 지정 시 용도보다 우선. 구분자 <code>;</code> (예: portrait;fullbody;emblem)</li>
-            <li><b>이름</b> 비우면 GPT 자동 작명 · <b>투명</b> y/n · <b>변형수</b> 1~10</li>
-            <li>한 번에 최대 50행까지 처리됩니다.</li>
-          </ul>
-        </details>
       </div>
 
-      <div class="preset-bar">
-        <select id="preset-select" title="프리셋 불러오기">
-          <option value="">📁 프리셋 불러오기…</option>
-        </select>
-        <button type="button" id="preset-save" class="mini-btn" title="현재 설정 저장">💾</button>
-        <button type="button" id="preset-del" class="icon-btn" title="선택 프리셋 삭제">🗑</button>
-      </div>
-
-      <form id="gen-form">
-        <div class="entity-tabs" id="entity-tabs"></div>
-
-        <div id="single-fields">
-          <label class="fld">이름 <span class="hint">비우면 자동</span>
-            <input name="name" type="text" placeholder="예: 카엘, 카론…" />
+      <div class="pform-body">
+        <!-- ── CSV / 스프레드시트 가져오기 ── -->
+        <div id="import-section" class="import-section hidden">
+          <p class="hint">표를 채워 올리면 <b>내용을 분석해 필요한 아트를 자동 설정</b>하고 일괄 생성합니다.</p>
+          <a href="/api/template.csv" class="mini-btn dl-tmpl" download>⬇ 표준 양식(CSV) 다운로드</a>
+          <label id="drop-zone" class="drop-zone">
+            <input type="file" id="import-file" accept=".csv,.xlsx,.xlsm" hidden />
+            <span class="dz-icon">📄</span>
+            <span class="dz-text">CSV / 엑셀(.xlsx) 파일을 선택하거나 여기로 드래그</span>
+            <span id="import-fname" class="hint sm"></span>
           </label>
-        </div>
-
-        <div id="batch-fields" class="hidden">
-          <div class="row2">
-            <label class="fld">개수 <span class="hint">1~8</span>
-              <input name="count" type="number" min="1" max="8" value="4" />
-            </label>
-            <label class="fld chk-label">도감
-              <label class="chk-inline"><input type="checkbox" name="make_codex" checked /> 오버뷰</label>
-            </label>
+          <div id="import-preview" class="import-preview hidden"></div>
+          <div id="import-actions" class="import-actions hidden">
+            <span id="import-summary" class="hint sm"></span>
+            <button type="button" id="import-run" class="mini-btn">✦ 전체 생성</button>
           </div>
-          <label class="fld">역할 목록 <span class="hint">한 줄에 하나</span>
-            <textarea name="roles" rows="3" placeholder="드래곤&#10;골렘&#10;언데드"></textarea>
-          </label>
+          <details class="cautions import-guide">
+            <summary>📋 양식 작성 가이드</summary>
+            <ul>
+              <li><b>타입</b>: 캐릭터 / 몬스터 / NPC</li>
+              <li><b>용도</b>: rpg · 카드 · 2d · 도감 · 프로필 · ui · 풀세트 중 하나 → 필요한 에셋 자동 선택</li>
+              <li><b>에셋</b>(선택): 직접 지정 시 용도보다 우선. 구분자 <code>;</code> (예: portrait;fullbody;emblem)</li>
+              <li><b>이름</b> 비우면 GPT 자동 작명 · <b>투명</b> y/n · <b>변형수</b> 1~10</li>
+              <li>한 번에 최대 50행까지 처리됩니다.</li>
+            </ul>
+          </details>
         </div>
 
-        <div class="row2">
-          <label class="fld">장르
-            <select name="genre" id="genre-select"></select>
-          </label>
-          <label class="fld" id="role-label">직업 / 역할
-            <select id="role-preset"></select>
-          </label>
-        </div>
-        <input name="role" type="text" class="mt6" placeholder="직접 입력 가능 (예: 권사)" />
-
-        <label class="fld">아트 스타일
-          <select id="style-preset"></select>
-        </label>
-        <input name="art_style" type="text" class="mt6" value="semi-realistic digital painting" />
-
-        <label class="fld">추가 키워드 <span class="hint">쉼표 구분</span>
-          <input name="keywords" type="text" placeholder="예: 얼음, 늑대" />
-        </label>
-
-        <div class="row2">
-          <label class="fld">이미지 크기
-            <select name="image_scale">
-              <option value="1.0">표준 (빠름)</option>
-              <option value="1.5">크게 (고해상)</option>
-              <option value="0.75">작게 (절약)</option>
-            </select>
-          </label>
-          <label class="fld">변형 개수 <span class="hint">표정/포즈</span>
-            <select name="variant_count">
-              <option value="3">3개</option>
-              <option value="5" selected>5개</option>
-              <option value="7">7개</option>
-              <option value="10">10개</option>
-            </select>
-          </label>
+        <div class="preset-bar">
+          <select id="preset-select" title="프리셋 불러오기">
+            <option value="">📁 프리셋 불러오기…</option>
+          </select>
+          <button type="button" id="preset-save" class="mini-btn" title="현재 설정 저장">💾</button>
+          <button type="button" id="preset-del" class="icon-btn" title="선택 프리셋 삭제">🗑</button>
         </div>
 
-        <label class="fld">이미지 모델
-          <select name="image_model" id="model-select"></select>
-          <span class="hint">gpt-image-1은 OpenAI 키 필요</span>
-        </label>
+        <form id="gen-form">
+          <!-- 대분류 1: 기본 정보 -->
+          <details class="grp" open>
+            <summary>🧩 기본 정보</summary>
+            <div class="grp-body">
+              <div class="entity-tabs" id="entity-tabs"></div>
 
-        <fieldset class="adv">
-          <legend>고급 (실 API 권장)</legend>
-          <label class="chk"><input type="checkbox" name="consistency" checked /> 캐릭터 일관성</label>
-          <label class="chk"><input type="checkbox" name="style_lock" /> 스타일 락</label>
-          <label class="chk"><input type="checkbox" name="transparent" /> 투명 배경(PNG)</label>
-          <label class="chk"><input type="checkbox" name="sprite_sheet" /> 스프라이트 시트</label>
-        </fieldset>
+              <div id="single-fields">
+                <label class="fld">이름 <span class="hint">비우면 자동</span>
+                  <input name="name" type="text" placeholder="예: 카엘, 카론…" />
+                </label>
+              </div>
 
-        <div class="section-lbl">생성할 아트 요소
-          <span class="select-actions">
-            <a href="#" id="sel-all">전체</a><a href="#" id="sel-none">해제</a><a href="#" id="sel-default">기본</a>
-          </span>
-        </div>
-        <div id="asset-picker" class="asset-picker"></div>
+              <div id="batch-fields" class="hidden">
+                <div class="row2">
+                  <label class="fld">개수 <span class="hint">1~8</span>
+                    <input name="count" type="number" min="1" max="8" value="4" />
+                  </label>
+                  <label class="fld chk-label">도감
+                    <label class="chk-inline"><input type="checkbox" name="make_codex" checked /> 오버뷰</label>
+                  </label>
+                </div>
+                <label class="fld">역할 목록 <span class="hint">한 줄에 하나</span>
+                  <textarea name="roles" rows="3" placeholder="드래곤&#10;골렘&#10;언데드"></textarea>
+                </label>
+              </div>
 
-        <details class="cautions">
-          <summary>⚠️ 비용·사용 주의사항</summary>
-          <ul>
-            <li><b>비용은 이미지 장수에 비례</b> — 변형·일괄은 급증. 처음엔 작게.</li>
-            <li><b>'크게'</b> + 배경/배너 → 비용↑. 아이콘은 '표준'.</li>
-            <li><b>gpt-image-1</b>은 OpenAI 키 필요(투명 네이티브).</li>
-            <li><b>일관성·스타일락·투명</b>은 실 API에서 효과.</li>
-            <li>상단 사용량은 <b>추정치</b> — 실 잔액은 콘솔 확인.</li>
-          </ul>
-        </details>
+              <div class="row2">
+                <label class="fld">장르
+                  <select name="genre" id="genre-select"></select>
+                </label>
+                <label class="fld" id="role-label">직업 / 역할
+                  <select id="role-preset"></select>
+                </label>
+              </div>
+              <input name="role" type="text" class="mt6" placeholder="직접 입력 가능 (예: 권사)" />
 
-        <button type="submit" id="submit-btn">✦ 생성하기</button>
-      </form>
+              <label class="fld">아트 스타일
+                <select id="style-preset"></select>
+              </label>
+              <input name="art_style" type="text" class="mt6" value="semi-realistic digital painting" />
+
+              <label class="fld">추가 키워드 <span class="hint">쉼표 구분</span>
+                <input name="keywords" type="text" placeholder="예: 얼음, 늑대" />
+              </label>
+            </div>
+          </details>
+
+          <!-- 대분류 2: 생성 옵션 -->
+          <details class="grp" open>
+            <summary>⚙️ 생성 옵션</summary>
+            <div class="grp-body">
+              <div class="row2">
+                <label class="fld">이미지 크기
+                  <select name="image_scale">
+                    <option value="1.0">표준 (빠름)</option>
+                    <option value="1.5">크게 (고해상)</option>
+                    <option value="0.75">작게 (절약)</option>
+                  </select>
+                </label>
+                <label class="fld">변형 개수 <span class="hint">표정/포즈</span>
+                  <select name="variant_count">
+                    <option value="3">3개</option>
+                    <option value="5" selected>5개</option>
+                    <option value="7">7개</option>
+                    <option value="10">10개</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="fld">이미지 모델
+                <select name="image_model" id="model-select"></select>
+                <span class="hint">gpt-image-1은 OpenAI 키 필요</span>
+              </label>
+
+              <fieldset class="adv">
+                <legend>고급 (실 API 권장)</legend>
+                <label class="chk"><input type="checkbox" name="consistency" checked /> 캐릭터 일관성</label>
+                <label class="chk"><input type="checkbox" name="style_lock" /> 스타일 락</label>
+                <label class="chk"><input type="checkbox" name="transparent" /> 투명 배경(PNG)</label>
+                <label class="chk"><input type="checkbox" name="sprite_sheet" /> 스프라이트 시트</label>
+              </fieldset>
+            </div>
+          </details>
+
+          <!-- 대분류 3: 아트 요소 -->
+          <details class="grp" open>
+            <summary>🎨 아트 요소</summary>
+            <div class="grp-body">
+              <div class="section-lbl">생성할 요소
+                <span class="select-actions">
+                  <a href="#" id="sel-all">전체</a><a href="#" id="sel-none">해제</a><a href="#" id="sel-default">기본</a>
+                </span>
+              </div>
+              <div id="asset-picker" class="asset-picker"></div>
+            </div>
+          </details>
+
+          <details class="cautions">
+            <summary>⚠️ 비용·사용 주의사항</summary>
+            <ul>
+              <li><b>비용은 이미지 장수에 비례</b> — 변형·일괄은 급증. 처음엔 작게.</li>
+              <li><b>'크게'</b> + 배경/배너 → 비용↑. 아이콘은 '표준'.</li>
+              <li><b>gpt-image-1</b>은 OpenAI 키 필요(투명 네이티브).</li>
+              <li><b>일관성·스타일락·투명</b>은 실 API에서 효과.</li>
+              <li>상단 사용량은 <b>추정치</b> — 실 잔액은 콘솔 확인.</li>
+            </ul>
+          </details>
+        </form>
+      </div>
+
+      <div class="pform-foot" id="pform-foot">
+        <button type="submit" form="gen-form" id="submit-btn">✦ 생성하기</button>
+      </div>
     </section>
 
     <!-- ── 중: 결과물 ── -->
