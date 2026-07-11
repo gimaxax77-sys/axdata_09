@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-REM ── AXData Studio 실행 (서버를 백그라운드로 띄우고 브라우저 자동 열림) ──
+REM ── AXData Studio 실행 (서버를 백그라운드로 띄우고 준비되면 브라우저 열림) ──
 cd /d "%~dp0"
 
 REM 프로젝트 폴더가 맞는지 확인
@@ -21,16 +21,29 @@ if not errorlevel 1 (
 )
 
 REM 서버를 백그라운드(창 없이)로 실행 — 로그는 server.log 에 기록
+echo AXData Studio 서버를 백그라운드로 시작합니다...
 wscript.exe "%~dp0_hidden.vbs"
 
-REM 서버 부팅을 잠깐 기다렸다가 브라우저 자동 접속
-timeout /t 4 >nul
-start "" http://127.0.0.1:8000
+REM 서버가 완전히 준비될 때까지 대기(최대 40초) 후 브라우저 자동 접속
+echo 서버 준비 중... (수초 걸릴 수 있습니다)
+set /a _tries=0
+:waitloop
+timeout /t 1 >nul
+netstat -ano | findstr :8000 | findstr LISTENING >nul 2>&1
+if not errorlevel 1 goto :ready
+set /a _tries+=1
+if %_tries% lss 40 goto :waitloop
+echo [경고] 서버가 아직 준비되지 않았습니다. server.log 를 확인하세요.
+pause
+exit /b 1
 
+:ready
+start "" http://127.0.0.1:8000
 echo ==================================================
 echo    AXData Studio 가 백그라운드에서 실행 중입니다.
+echo    (이 창은 닫혀도 서버는 계속 실행됩니다)
 echo    접속 : http://127.0.0.1:8000
-echo    로그 : server.log  (문제가 있으면 이 파일을 확인)
+echo    로그 : server.log
 echo    종료 : stop.bat 을 실행하세요
 echo ==================================================
 timeout /t 3 >nul
