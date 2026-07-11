@@ -134,6 +134,33 @@ def test_make_tileable_preserves_size():
     assert out.size == (64, 64)
 
 
+def test_breathe_keeps_size_and_bottom(tmp_path):
+    # 호흡 프레임은 크기가 그대로여야 하고(흔들림 방지), 발(하단)은 고정
+    src = tmp_path / "base.png"
+    img = Image.new("RGB", (80, 100), (20, 20, 20))
+    from PIL import ImageDraw
+    ImageDraw.Draw(img).rectangle([0, 90, 79, 99], fill=(200, 50, 50))  # 하단 띠
+    img.save(src)
+    dst = tmp_path / "f.png"
+    imageops.breathe(src, dst, phase=0.5)  # 최대 확장 지점
+    out = Image.open(dst)
+    assert out.size == (80, 100)                    # 크기 동일
+    assert out.getpixel((40, 99))[0] > 150          # 하단 띠 유지(발 고정)
+
+
+def test_idle_animation_frames_uniform_size(settings, tmp_path):
+    # 대기 애니메이션 5프레임은 모두 동일 크기여야 함(1장만 작던 문제 회귀 방지)
+    from app.services import gemini_service
+    from app.models import EntityConcept
+    concept = EntityConcept(name="파수병", title="", genre="fantasy", role="기사",
+                            tagline="", appearance="", personality="", backstory="")
+    res = gemini_service.generate_asset(
+        cat.CATALOG["anim_idle"], concept, tmp_path, settings, variant_count=5)
+    assert len(res) == 5
+    sizes = {Image.open(r.path).size for r in res}
+    assert len(sizes) == 1  # 모든 프레임 크기 동일
+
+
 def test_tile_preview_file(tmp_path):
     src = tmp_path / "tile.png"
     Image.new("RGB", (48, 48), (30, 60, 90)).save(src)

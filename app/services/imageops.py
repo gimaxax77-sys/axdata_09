@@ -126,6 +126,30 @@ def tile_preview_file(src: Path, out: Path, n: int = 3) -> Path | None:
 
 
 # ─────────────────────────────────────────────────────────────────────
+# 대기(Idle) 호흡 프레임 합성
+# ─────────────────────────────────────────────────────────────────────
+def breathe(src: Path, dst: Path, phase: float, amp: float = 0.02) -> None:
+    """기준 프레임 하나를 발(하단) 고정으로 미세하게 세로 확장해 호흡 프레임 생성.
+
+    프레임마다 AI가 크기·구도를 다르게 그리는 흔들림을 없애기 위해, 대기
+    애니메이션은 기준 1장에서 이 함수로 나머지 프레임을 만든다. phase 0~1 을
+    한 주기로 (1-cos)/2 곡선을 써서 '확장만'(여백 없음) 하므로 은은한 호흡만
+    남고 프레임 크기는 항상 동일하다.
+    """
+    import math
+
+    img = Image.open(src)
+    w, h = img.size
+    factor = 1.0 + amp * (0.5 - 0.5 * math.cos(2 * math.pi * phase))
+    nh = max(h, round(h * factor))
+    scaled = img.resize((w, nh), Image.LANCZOS)
+    canvas = Image.new(img.mode, (w, h))
+    canvas.paste(scaled, (0, h - nh))  # 하단 정렬(발 고정), 상단은 자연 크롭
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(dst)
+
+
+# ─────────────────────────────────────────────────────────────────────
 # 디코드/리사이즈 유틸
 # ─────────────────────────────────────────────────────────────────────
 def as_bytesio(data):

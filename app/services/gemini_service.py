@@ -116,6 +116,16 @@ def generate_asset(
     results: list[ImageResult] = []
     art_style = (getattr(concept, "art_style", "") or "").strip()
     for i, variant in enumerate(variants):
+        suffix = f"_{i+1}" if multi else ""
+        out = job_dir / f"{spec.key}{suffix}.png"
+        label = f"{spec.label} · {variant}" if variant else spec.label
+        # 대기 애니메이션: 프레임마다 AI가 크기·구도를 다르게 그려 흔들리는 문제를
+        # 막기 위해 기준 1장만 실제 생성하고, 나머지는 미세 호흡을 절차적으로 합성한다.
+        if spec.key == "anim_idle" and multi and i > 0:
+            imageops.breathe(results[0].path, out, phase=i / len(variants))
+            results.append(ImageResult(path=out, label=label,
+                                       demo=results[0].demo, variant=variant))
+            continue
         prompt = cat.build_prompt(
             spec,
             visual=concept.visual_core,
