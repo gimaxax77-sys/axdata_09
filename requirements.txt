@@ -1,27 +1,31 @@
+# 버전은 "이 버전 이상, 다음 메이저 미만"으로 지정합니다.
+# 이렇게 하면 사용 중인 Python(3.11~3.14 등)에 맞는 미리 빌드된 패키지를
+# 자동으로 받아 설치 오류(소스 빌드 실패)를 피할 수 있습니다.
+
 # Web framework
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-python-multipart==0.0.20
-jinja2==3.1.5
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+python-multipart>=0.0.20,<1
+jinja2>=3.1,<4
 
 # Config
-pydantic==2.10.4
-pydantic-settings==2.7.1
-python-dotenv==1.0.1
+pydantic>=2.10,<3
+pydantic-settings>=2.7,<3
+python-dotenv>=1.0,<2
 
 # AI providers
 openai>=1.40,<3          # GPT - character concept / text
 google-genai>=1.38,<3    # Gemini - image generation (gemini-2.5-flash-image 지원 필요)
 
 # Image / sheet composition
-pillow==11.1.0
-reportlab==4.2.5         # PDF export
+pillow>=11.1,<13
+reportlab>=4.2,<5        # PDF export
 
 # HTTP
-httpx==0.28.1
+httpx>=0.28,<1
 
 # CapCut draft generation (optional; app degrades gracefully if missing)
-# pyJianYingDraft==0.2.4
+# pyJianYingDraft>=0.2
 
 # Video fallback (optional; requires ffmpeg on PATH)
-# moviepy==2.1.2
+# moviepy>=2.1
