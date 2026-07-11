@@ -149,7 +149,19 @@
         <h2>🕘 작업 히스토리</h2>
         <button type="button" id="hist-refresh" class="icon-btn" title="새로고침">↻</button>
       </div>
-      <p class="hint">클릭 시 폴더 열림 · <code id="hist-path">outputs/</code></p>
+      <div class="pathbar">
+        <span class="hint">💾 <code id="hist-path">outputs/</code></span>
+        <button type="button" id="path-edit" class="link-btn">경로 변경</button>
+      </div>
+      <div id="path-editor" class="path-editor hidden">
+        <input id="path-input" type="text" placeholder="예: D:\게임아트\결과물" />
+        <div class="path-btns">
+          <button type="button" id="path-save" class="mini-btn">저장</button>
+          <button type="button" id="path-cancel" class="link-btn">취소</button>
+          <a href="#" id="path-default">기본값</a>
+        </div>
+      </div>
+      <p class="hint sm">항목 클릭 시 폴더 열림</p>
       <div id="history-list" class="history-list"></div>
     </aside>
   </main>

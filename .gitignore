@@ -10,6 +10,7 @@ env/
 # Environment / secrets
 .env
 *.local
+runtime_config.json
 
 # Generated outputs (keep the folder, ignore its contents)
 outputs/*

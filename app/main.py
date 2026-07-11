@@ -38,12 +38,15 @@ app = FastAPI(
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
-# 생성 결과물 정적 서빙
-app.mount(
-    "/files",
-    StaticFiles(directory=str(settings.output_path)),
-    name="files",
-)
+
+@app.get("/files/{path:path}")
+def serve_output(path: str) -> FileResponse:
+    """생성 결과물 서빙 (현재 output_dir 를 요청 시점에 읽어 동적 서빙)."""
+    full = (settings.output_path / path).resolve()
+    root = settings.output_path.resolve()
+    if not str(full).startswith(str(root)) or not full.is_file():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    return FileResponse(full)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -67,6 +70,33 @@ def status() -> dict:
 def catalog() -> dict:
     """엔티티 타입 + 생성 가능한 에셋 카탈로그."""
     return asset_catalog.catalog_payload()
+
+
+@app.get("/api/settings")
+def get_settings_api() -> dict:
+    """현재 저장 경로 등 설정."""
+    return {
+        "output_dir": settings.output_dir,
+        "output_abs": str(settings.output_path.resolve()),
+    }
+
+
+@app.post("/api/settings")
+def set_settings_api(payload: dict) -> dict:
+    """저장 경로(output_dir) 변경 → 영속화 + 즉시 반영."""
+    from . import runtime
+
+    new_dir = (payload or {}).get("output_dir", "").strip()
+    if not new_dir:
+        raise HTTPException(status_code=400, detail="경로가 비어 있습니다.")
+    try:
+        p = Path(new_dir).expanduser()
+        p.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"경로 생성 실패: {exc}") from exc
+    runtime.set_output_dir(str(p))
+    settings.output_dir = str(p)  # 캐시된 settings 즉시 갱신
+    return {"output_dir": settings.output_dir, "output_abs": str(settings.output_path.resolve())}
 
 
 @app.get("/api/usage")

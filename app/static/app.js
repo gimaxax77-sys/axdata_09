@@ -30,8 +30,45 @@ async function init() {
   renderModels();
   wireModeToggle();
   $("#hist-refresh").addEventListener("click", renderHistoryList);
+  wirePathSettings();
+  loadSettings();
   loadUsage();
   renderHistoryList();
+}
+
+// ── 저장 경로 설정 ───────────────────────────────────────
+const DEFAULT_PATH = "D:\\.CODE\\.Claude\\아트팩\\art_create_all";
+async function loadSettings() {
+  try {
+    const s = await (await fetch("/api/settings")).json();
+    if ($("#hist-path")) $("#hist-path").textContent = s.output_dir || "outputs";
+    if ($("#path-input")) $("#path-input").value = s.output_dir || "";
+  } catch (e) {}
+}
+function wirePathSettings() {
+  $("#path-edit").addEventListener("click", () => {
+    $("#path-editor").classList.toggle("hidden");
+  });
+  $("#path-cancel").addEventListener("click", () => $("#path-editor").classList.add("hidden"));
+  $("#path-default").addEventListener("click", (e) => {
+    e.preventDefault(); $("#path-input").value = DEFAULT_PATH;
+  });
+  $("#path-save").addEventListener("click", async () => {
+    const v = $("#path-input").value.trim();
+    if (!v) { alert("경로를 입력하세요."); return; }
+    try {
+      const r = await fetch("/api/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ output_dir: v }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "실패");
+      $("#hist-path").textContent = d.output_dir;
+      $("#path-editor").classList.add("hidden");
+      renderHistoryList();
+      alert("저장 경로가 변경되었습니다:\n" + d.output_abs);
+    } catch (err) { alert("경로 저장 실패: " + err.message); }
+  });
 }
 
 function entityLabel(e) {

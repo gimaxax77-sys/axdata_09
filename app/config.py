@@ -56,4 +56,13 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    # 런타임 override (UI 에서 바꾼 저장 경로 등) 적용
+    try:
+        from .runtime import get_output_dir
+        ov = get_output_dir()
+        if ov:
+            s.output_dir = ov
+    except Exception:
+        pass
+    return s
