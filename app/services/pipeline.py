@@ -59,7 +59,8 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
         if not spec.is_image:
             continue
         for res in gemini_service.generate_asset(spec, concept, job_dir, settings,
-                                                 scale=req.image_scale):
+                                                 scale=req.image_scale,
+                                                 variant_count=req.variant_count):
             image_map.setdefault(key, res.path)  # 첫 변형을 대표로
             if res.demo:
                 demo_art = True
@@ -150,7 +151,7 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
         return GenerationRequest(
             entity_type=entity, name=name, genre=req.genre, role=role,
             art_style=req.art_style, keywords=req.keywords, assets=list(req.assets),
-            image_scale=req.image_scale,
+            image_scale=req.image_scale, variant_count=req.variant_count,
         )
 
     # 각 개체를 병렬 생성 (Pillow 인코딩은 GIL 을 해제하므로 스레드로 가속)

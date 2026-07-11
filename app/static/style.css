@@ -230,7 +230,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent2); }
   padding: 2px 6px; border-radius: 5px; margin-left: 6px; }
 
 .section-title { font-size: 13px; color: var(--sub); text-transform: uppercase; letter-spacing: 1px;
-  margin: 6px 0 -6px; }
+  margin: 6px 0 10px; }
 
 .stats { display: grid; gap: 8px; }
 .stat-row { display: grid; grid-template-columns: 90px 1fr 38px; align-items: center; gap: 10px; font-size: 13px; }

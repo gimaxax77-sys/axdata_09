@@ -38,9 +38,11 @@ def generate_asset(
     job_dir: Path,
     settings: Settings,
     scale: float = 1.0,
+    variant_count: int = 5,
 ) -> list[ImageResult]:
     """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장. scale 로 해상도 조절."""
-    variants = spec.variants or ("",)
+    variants = spec.resolve_variants(variant_count)
+    multi = len(variants) > 1
     w, h = spec.size
     size = (max(64, int(w * scale)), max(64, int(h * scale)))
     results: list[ImageResult] = []
@@ -53,7 +55,7 @@ def generate_asset(
             genre=concept.genre,
             variant=variant,
         )
-        suffix = f"_{i+1}" if spec.variants else ""
+        suffix = f"_{i+1}" if multi else ""
         out = job_dir / f"{spec.key}{suffix}.png"
         label = f"{spec.label} · {variant}" if variant else spec.label
         is_real = _generate_image(
@@ -171,6 +173,12 @@ def _generate_placeholder(out_path, size, label, palette, style) -> None:
             _vignette(img, colors)
         if style == "namecard":
             _namecard_frame(draw, w, h, colors)
+        if style == "button":
+            _button_shape(draw, w, h, colors)
+        if style == "panel":
+            _panel_frame(draw, w, h, colors)
+        if style == "hud":
+            _hud_bars(draw, w, h, colors)
 
     draw = ImageDraw.Draw(img, "RGBA")
     if style != "logo":
@@ -273,6 +281,68 @@ def _namecard_frame(draw, w, h, colors) -> None:
                            radius=6, fill=(0, 0, 0, 130))
     draw.rounded_rectangle([tx, int(h * 0.63), int(w * 0.70), int(h * 0.71)],
                            radius=6, fill=(0, 0, 0, 130))
+
+
+def _button_shape(draw, w, h, colors) -> None:
+    """알약형 버튼 실루엣 (인게임 버튼 UI)."""
+    accent = colors[2 if len(colors) > 2 else 0]
+    top = colors[1 if len(colors) > 1 else 0]
+    m = int(min(w, h) * 0.16)
+    r = (h - 2 * m) // 2
+    draw.rounded_rectangle([m, m, w - m, h - m], radius=r, fill=(*accent, 220),
+                           outline=(255, 255, 255, 60), width=3)
+    # 상단 하이라이트
+    draw.rounded_rectangle([m + 6, m + 6, w - m - 6, m + (h - 2 * m) // 2],
+                           radius=r, fill=(*top, 90))
+
+
+def _panel_frame(draw, w, h, colors) -> None:
+    """창/패널 프레임 (인벤토리·대화창)."""
+    accent = colors[2 if len(colors) > 2 else 0]
+    m = int(min(w, h) * 0.05)
+    draw.rounded_rectangle([m, m, w - m, h - m], radius=m,
+                           fill=(0, 0, 0, 120), outline=(*accent, 230),
+                           width=max(4, m // 2))
+    # 타이틀 바
+    draw.rounded_rectangle([m, m, w - m, int(h * 0.16)], radius=m,
+                           fill=(*accent, 200))
+    # 내부 슬롯 그리드
+    gx0, gy0 = int(w * 0.10), int(h * 0.24)
+    cell = int(min(w, h) * 0.12)
+    for r in range(3):
+        for c in range(5):
+            x = gx0 + c * (cell + 10)
+            y = gy0 + r * (cell + 10)
+            if x + cell < w - m and y + cell < h - m:
+                draw.rounded_rectangle([x, y, x + cell, y + cell], radius=6,
+                                       fill=(255, 255, 255, 20),
+                                       outline=(*accent, 120), width=2)
+
+
+def _hud_bars(draw, w, h, colors) -> None:
+    """HUD 바 세트 (체력/마나/경험치) + 미니맵 프레임."""
+    accent = colors[2 if len(colors) > 2 else 0]
+    red, blue = (200, 60, 60), (60, 120, 200)
+    bx, bw = int(w * 0.06), int(w * 0.42)
+    bar_h = int(h * 0.07)
+    for i, (col, frac) in enumerate([(red, 0.8), (blue, 0.6), (accent, 0.45)]):
+        y = int(h * 0.14) + i * int(bar_h * 1.6)
+        draw.rounded_rectangle([bx, y, bx + bw, y + bar_h], radius=bar_h // 2,
+                               fill=(0, 0, 0, 150), outline=(255, 255, 255, 60), width=2)
+        draw.rounded_rectangle([bx, y, bx + int(bw * frac), y + bar_h],
+                               radius=bar_h // 2, fill=(*col, 230))
+    # 우측 미니맵 원형 프레임
+    mr = int(min(w, h) * 0.3)
+    cx, cy = int(w * 0.80), int(h * 0.42)
+    draw.ellipse([cx - mr, cy - mr, cx + mr, cy + mr], fill=(0, 0, 0, 140),
+                 outline=(*accent, 230), width=4)
+    # 하단 스킬 슬롯
+    sy = int(h * 0.78)
+    sc = int(min(w, h) * 0.12)
+    for i in range(5):
+        x = bx + i * (sc + 10)
+        draw.rounded_rectangle([x, sy, x + sc, sy + sc], radius=8,
+                               fill=(255, 255, 255, 20), outline=(*accent, 150), width=2)
 
 
 def _logo_text(img, draw, label, colors) -> None:

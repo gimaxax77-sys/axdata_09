@@ -21,6 +21,7 @@ CATEGORIES = {
     "item": "아이템 / 장비",
     "environment": "환경 / 배경",
     "ui": "UI / 브랜딩",
+    "hud": "인게임 UI / HUD",
     "composite": "통합 산출물",
 }
 
@@ -61,12 +62,25 @@ class AssetSpec:
     category: str
     size: tuple[int, int]
     prompt: str                       # {visual} {name} {style} {genre} {variant} {kind}
-    placeholder: str = "figure"       # figure|scene|emblem|pixel|card|logo
-    variants: tuple[str, ...] = ()    # 비어있으면 단일 이미지
+    placeholder: str = "figure"       # figure|scene|emblem|pixel|card|logo|button|hud
+    variants: tuple[str, ...] = ()    # 고정 변형 (비어있으면 단일 이미지)
+    variant_pool: tuple[str, ...] = ()  # 가변 변형 풀 (개수 선택형; 설정 시 이게 우선)
     entities: frozenset = ALL_ENTITIES
     default: bool = False
     is_image: bool = True             # False = 합성 산출물(sheet/video)
     desc: str = ""
+
+    @property
+    def variable(self) -> bool:
+        """개수 선택형(3/5/7/10) 변형 에셋인지."""
+        return bool(self.variant_pool)
+
+    def resolve_variants(self, count: int) -> tuple[str, ...]:
+        """가변이면 풀에서 count 개, 아니면 고정 변형(없으면 단일)."""
+        if self.variant_pool:
+            n = max(1, min(count, len(self.variant_pool)))
+            return self.variant_pool[:n]
+        return self.variants or ("",)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -93,16 +107,18 @@ _SPECS: list[AssetSpec] = [
         "portrait of {name} showing a clear {variant} facial expression, "
         "{visual}, {style}, consistent character design, plain background",
         placeholder="figure",
-        variants=("기쁨", "분노", "슬픔", "놀람"),
-        desc="비주얼노벨·대화 시스템용 감정 표정",
+        variant_pool=("기쁨", "분노", "슬픔", "놀람", "수줍음", "무표정",
+                      "윙크", "미소", "당황", "결의"),
+        desc="비주얼노벨·대화 시스템용 감정 표정 (개수 선택)",
     ),
     AssetSpec(
         "poses", "액션 포즈", "character", (768, 768),
         "full body action pose of {name} performing a {variant} motion, "
         "{visual}, {style}, dynamic, plain background",
         placeholder="figure",
-        variants=("공격", "방어", "승리"),
-        desc="공격·방어·승리 모션 스틸",
+        variant_pool=("공격", "방어", "승리", "대기", "피격", "스킬 시전",
+                      "이동", "사망", "조롱", "경계"),
+        desc="공격·방어·승리 등 모션 스틸 (개수 선택)",
     ),
     AssetSpec(
         "pixel_sprite", "도트 스프라이트", "character", (512, 512),
@@ -131,8 +147,9 @@ _SPECS: list[AssetSpec] = [
         "chat emote sticker of {name} expressing {variant}, {visual}, "
         "cute expressive sticker, bold outline, {genre}, plain background",
         placeholder="emblem",
-        variants=("웃음", "윙크", "화남", "눈물", "하트"),
-        desc="채팅·리액션 이모트 스티커",
+        variant_pool=("웃음", "윙크", "화남", "눈물", "하트", "물음표",
+                      "박수", "졸림", "놀람", "화이팅"),
+        desc="채팅·리액션 이모트 스티커 (개수 선택)",
     ),
     AssetSpec(
         "companion", "탈것 / 펫", "character", (768, 768),
@@ -164,8 +181,9 @@ _SPECS: list[AssetSpec] = [
         "ability skill icon for {name}'s {variant}, {visual} theme, "
         "{genre} spell effect, glowing, centered, plain background",
         placeholder="emblem",
-        variants=("스킬 I", "스킬 II", "궁극기"),
-        desc="스킬·이펙트 아이콘",
+        variant_pool=("스킬 I", "스킬 II", "스킬 III", "궁극기", "패시브",
+                      "버프", "디버프", "소환", "강타", "치유"),
+        desc="스킬·이펙트 아이콘 (개수 선택)",
     ),
     AssetSpec(
         "rarity_frame", "등급 프레임", "item", (512, 512),
@@ -236,6 +254,47 @@ _SPECS: list[AssetSpec] = [
         desc="프로필·명함 카드",
     ),
 
+    # ── 인게임 UI / HUD ───────────────────────────────────────────
+    AssetSpec(
+        "ui_buttons", "버튼 세트", "hud", (512, 256),
+        "game UI button in {variant} state, {genre} interface, {visual} color theme, "
+        "rounded ornate button, clean vector UI, plain background",
+        placeholder="button",
+        variant_pool=("기본", "호버", "눌림", "비활성", "확인", "취소", "강조", "잠금"),
+        desc="상태별 버튼 (기본/호버/눌림 등, 개수 선택)",
+    ),
+    AssetSpec(
+        "ui_icons", "기능 아이콘 세트", "hud", (512, 512),
+        "game UI functional icon for {variant}, {genre} interface, {visual} theme, "
+        "flat minimal icon, single glyph, plain background",
+        placeholder="emblem",
+        variant_pool=("인벤토리", "설정", "상점", "지도", "퀘스트", "가방",
+                      "스킬", "친구", "우편", "랭킹"),
+        desc="메뉴·기능 아이콘 (인벤토리/설정/상점 등, 개수 선택)",
+    ),
+    AssetSpec(
+        "ui_currency", "재화 아이콘", "hud", (512, 512),
+        "game currency/resource icon for {variant}, {genre} theme, {visual} palette, "
+        "shiny detailed icon, centered, plain background",
+        placeholder="emblem",
+        variant_pool=("골드", "젬", "에너지", "티켓", "코인", "크리스탈"),
+        desc="화폐·재화 아이콘 (개수 선택)",
+    ),
+    AssetSpec(
+        "ui_panel", "창 / 패널 프레임", "hud", (1024, 768),
+        "game UI window panel frame, {genre} interface, {visual} theme, "
+        "ornate border, empty content area, inventory/dialog panel, plain background",
+        placeholder="panel",
+        desc="인벤토리·대화창 등 패널 프레임",
+    ),
+    AssetSpec(
+        "ui_hud", "HUD 바 세트", "hud", (1024, 512),
+        "game HUD elements set, {genre} interface, {visual} theme, health mana and "
+        "experience bars, minimap frame, skill slots, clean UI, plain background",
+        placeholder="hud",
+        desc="체력·마나·경험치 바, 미니맵/스킬 슬롯",
+    ),
+
     # ── 통합 산출물 ───────────────────────────────────────────────
     AssetSpec(
         "sheet", "캐릭터 시트 (PNG/PDF)", "composite", (0, 0), "",
@@ -273,6 +332,9 @@ def catalog_payload() -> dict:
                 "label": s.label,
                 "category": s.category,
                 "variants": list(s.variants),
+                "variable": s.variable,
+                "pool_max": len(s.variant_pool),
+                "fixed_count": len(s.variants),
                 "entities": sorted(s.entities),
                 "default": s.default,
                 "is_image": s.is_image,

@@ -70,15 +70,24 @@
           <datalist id="art-style-list"><!-- JS로 채움 --></datalist>
         </label>
 
+        <label>추가 키워드 <span class="hint">(쉼표 구분)</span>
+          <input name="keywords" type="text" placeholder="예: 얼음, 늑대, 은빛 갑옷" />
+        </label>
+
         <div class="row2">
-          <label>추가 키워드 <span class="hint">(쉼표)</span>
-            <input name="keywords" type="text" placeholder="예: 얼음, 늑대" />
-          </label>
           <label>이미지 크기
             <select name="image_scale">
               <option value="1.0">표준 (빠름)</option>
               <option value="1.5">크게 (고해상)</option>
               <option value="0.75">작게 (절약)</option>
+            </select>
+          </label>
+          <label>변형 개수 <span class="hint">(표정/포즈/스킬 등)</span>
+            <select name="variant_count">
+              <option value="3">3개</option>
+              <option value="5" selected>5개</option>
+              <option value="7">7개</option>
+              <option value="10">10개</option>
             </select>
           </label>
         </div>

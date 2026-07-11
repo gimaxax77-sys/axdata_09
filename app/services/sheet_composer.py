@@ -56,9 +56,17 @@ def _wrap(draw, text, font, max_w) -> list[str]:
     return lines
 
 
-def _text_block(draw, xy, text, font, fill, max_w, line_gap=8) -> int:
+def _text_block(draw, xy, text, font, fill, max_w, line_gap=8, max_lines=0) -> int:
     x, y = xy
-    for line in _wrap(draw, text, font, max_w):
+    lines = _wrap(draw, text, font, max_w)
+    if max_lines and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        # 마지막 줄에 말줄임표
+        last = lines[-1]
+        while last and draw.textlength(last + "…", font=font) > max_w:
+            last = last[:-1]
+        lines[-1] = last + "…"
+    for line in lines:
         draw.text((x, y), line, font=font, fill=fill)
         y += font.size + line_gap
     return y
@@ -139,39 +147,49 @@ def compose_sheet(
     rw = W - rx - MARGIN
     ry = 210
 
+    # 우측 컬럼은 하단 썸네일 밴드(fy=H-400)를 침범하지 않도록 제한한다.
+    BOTTOM = H - 430
+
     if concept.tagline:
-        for line in _wrap(draw, f'“{concept.tagline}”', load_font(28), rw):
+        for line in _wrap(draw, f'“{concept.tagline}”', load_font(28), rw)[:2]:
             draw.text((rx, ry), line, font=load_font(28), fill=accent)
             ry += 40
         ry += 14
 
-    def section(title: str, text: str, ry: int) -> int:
+    def section(title: str, text: str, ry: int, max_lines: int) -> int:
+        if ry > BOTTOM:
+            return ry
         draw.text((rx, ry), title, font=f_h, fill=accent)
         ry += 42
-        ry = _text_block(draw, (rx, ry), text, f_body, INK, rw)
+        ry = _text_block(draw, (rx, ry), text, f_body, INK, rw, max_lines=max_lines)
         return ry + 22
 
     s_look, s_mind, s_back = _SECTION_LABELS.get(concept.entity_type,
                                                  _SECTION_LABELS["character"])
-    ry = section(s_look, concept.appearance, ry)
-    ry = section(s_mind, concept.personality, ry)
-    ry = section(s_back, concept.backstory, ry)
+    ry = section(s_look, concept.appearance, ry, 3)
+    ry = section(s_mind, concept.personality, ry, 3)
+    ry = section(s_back, concept.backstory, ry, 4)
 
     # 능력 / 공격 패턴
     ability_label = "공격 패턴" if concept.entity_type == "monster" else "시그니처 능력"
-    draw.text((rx, ry), ability_label, font=f_h, fill=accent)
-    ry += 44
-    for ab in concept.abilities:
-        draw.ellipse([rx, ry + 8, rx + 10, ry + 18], fill=accent)
-        _text_block(draw, (rx + 24, ry), ab, f_body, INK, rw - 24)
-        ry += f_body.size + 16
+    if ry <= BOTTOM:
+        draw.text((rx, ry), ability_label, font=f_h, fill=accent)
+        ry += 44
+        for ab in concept.abilities[:5]:
+            if ry > BOTTOM:
+                break
+            draw.ellipse([rx, ry + 8, rx + 10, ry + 18], fill=accent)
+            _text_block(draw, (rx + 24, ry), ab, f_body, INK, rw - 24, max_lines=1)
+            ry += f_body.size + 16
 
     # 엔티티별 부가 정보 (위협도/서식지, 직업/소속 등)
-    if concept.extra:
+    if concept.extra and ry <= BOTTOM:
         ry += 14
         draw.text((rx, ry), "INFO", font=f_h, fill=accent)
         ry += 46
         for item in concept.extra[:4]:
+            if ry > BOTTOM:
+                break
             draw.text((rx, ry), f"{item.label}", font=load_font(21, bold=True), fill=accent)
             lbl_w = draw.textlength(f"{item.label}", font=load_font(21, bold=True))
             # 라벨과 값을 같은 줄에 두되, 길면 다음 줄로

@@ -121,11 +121,13 @@ function renderAssetPicker() {
       <div class="asset-group">
         <div class="group-title">${cats[c]}</div>
         <div class="group-items">
-          ${grouped[c].map((a) => `
+          ${grouped[c].map((a) => {
+            const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
+            return `
             <label class="asset-chip" title="${a.desc}">
               <input type="checkbox" name="asset" value="${a.key}" ${a.default ? "checked" : ""}/>
-              <span>${a.label}${a.variants.length ? `<i>×${a.variants.length}</i>` : ""}</span>
-            </label>`).join("")}
+              <span>${a.label}${badge ? `<i>${badge}</i>` : ""}</span>
+            </label>`; }).join("")}
         </div>
       </div>`).join("");
 
@@ -175,6 +177,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
 
   const batch = MODE === "batch";
   const imageScale = parseFloat(fd.get("image_scale") || "1.0");
+  const variantCount = parseInt(fd.get("variant_count") || "5", 10);
   let url, payload;
   if (batch) {
     const roles = (fd.get("roles") || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -186,7 +189,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       count: Math.max(1, Math.min(8, parseInt(fd.get("count") || "4", 10))),
       roles, names: [], assets,
       make_codex: fd.get("make_codex") !== null,
-      image_scale: imageScale,
+      image_scale: imageScale, variant_count: variantCount,
     };
   } else {
     url = "/api/generate";
@@ -195,7 +198,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       role: fd.get("role") || "",
       art_style: fd.get("art_style") || "semi-realistic digital painting",
       keywords: fd.get("keywords") || "", assets,
-      image_scale: imageScale,
+      image_scale: imageScale, variant_count: variantCount,
     };
   }
 

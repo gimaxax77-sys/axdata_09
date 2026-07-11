@@ -22,6 +22,9 @@ class GenerationRequest(BaseModel):
     # 이미지 해상도 배율 (1.0=표준, 1.5=크게)
     image_scale: float = Field(1.0, ge=0.5, le=2.0)
 
+    # 가변 변형 에셋(표정/포즈/스킬 등)의 생성 장수
+    variant_count: int = Field(5, ge=1, le=10)
+
 
 class Stat(BaseModel):
     name: str
@@ -83,6 +86,7 @@ class BatchRequest(BaseModel):
     assets: list[str] = Field(default_factory=list, description="각 개체에 적용할 에셋")
     make_codex: bool = Field(True, description="도감 오버뷰 이미지 생성")
     image_scale: float = Field(1.0, ge=0.5, le=2.0)
+    variant_count: int = Field(5, ge=1, le=10)
 
 
 class BatchResult(BaseModel):
