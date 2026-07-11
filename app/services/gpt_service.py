@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 
 from ..config import Settings
 from ..logging_config import get_logger
@@ -81,16 +82,30 @@ def generate_concept(req: GenerationRequest, settings: Settings) -> EntityConcep
     return _generate_demo(req, entity)
 
 
+def _normalize_proportion(text: str) -> str:
+    """'N등신'(한국식 몸 비율 표현)을 영어 비율 지시로 변환.
+
+    이미지 모델이 '5등신'을 '머리 5개'로 오해해 그리는 문제를 막는다.
+    항상 '머리 하나'임을 명시한다.
+    """
+    def repl(m):
+        n = m.group(1)
+        return (f"(body proportion about {n} heads tall, head-to-body height "
+                f"ratio 1:{n}; ONE single character with exactly one head, "
+                "no extra heads)")
+    return re.sub(r"(\d+(?:\.\d+)?)\s*등신", repl, text or "")
+
+
 def _build_user_brief(req: GenerationRequest) -> str:
     parts = [f"Entity type: {req.entity_type}"]
     if req.name:
         parts.append(f"Name: {req.name}")
     parts.append(f"Genre: {req.genre}")
     if req.role:
-        parts.append(f"Role/Species/Type: {req.role}")
+        parts.append(f"Role/Species/Type: {_normalize_proportion(req.role)}")
     parts.append(f"Art style: {req.art_style}")
     if req.keywords:
-        parts.append(f"Extra keywords: {req.keywords}")
+        parts.append(f"Extra keywords: {_normalize_proportion(req.keywords)}")
     return "\n".join(parts)
 
 

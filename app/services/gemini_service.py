@@ -113,6 +113,10 @@ def generate_asset(
         if spec.key not in _TEXT_ALLOWED:
             prompt += (", no text, no words, no letters, no numbers, "
                        "no watermark, no signature, no logo, no caption")
+        # 캐릭터 이미지는 머리 하나·단일 인물 강제 (다중 머리 아티팩트 방지)
+        if spec.character_ref:
+            prompt += (", a single character with exactly one head, "
+                       "one body, no duplicated heads, no extra faces")
         if use_ref is not None:
             if style_only:
                 prompt = (

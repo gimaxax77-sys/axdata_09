@@ -160,6 +160,18 @@ def test_pipeline_demo_generates_assets(settings):
     assert (settings.output_path / res.job_id / "result.json").exists()
 
 
+def test_proportion_keyword_normalized():
+    from app.services.gpt_service import _normalize_proportion
+    # 'N등신'(몸 비율)이 '머리 N개'로 오해되지 않도록 영어 비율로 변환
+    out = _normalize_proportion("붉은 갑옷, 5등신")
+    assert "등신" not in out
+    assert "one head" in out and "5" in out
+    # 소수 등신도 처리
+    assert "7.5" in _normalize_proportion("7.5등신")
+    # 등신이 없으면 원문 유지
+    assert _normalize_proportion("푸른 머리") == "푸른 머리"
+
+
 def test_art_style_injected_and_saved(settings):
     import json
     req = GenerationRequest(entity_type="character", name="스타일", role="저격수",
