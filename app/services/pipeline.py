@@ -87,8 +87,22 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
                 label=res.label, demo=res.demo, is_image=True,
             ))
 
-        # 스프라이트 시트: 다변형 에셋을 아틀라스로 패킹
-        if req.sprite_sheet and len(results) > 1:
+        # 애니메이션: 가로 스트립 시트 + 반복 GIF 자동 생성
+        if spec.is_anim and len(results) > 1:
+            sheet_png = job_dir / f"{spec.key}_sheet.png"
+            atlas_json = job_dir / f"{spec.key}_atlas.json"
+            spritesheet.pack([(r.variant or spec.label, r.path) for r in results],
+                             sheet_png, atlas_json, single_row=True)
+            assets.append(GeneratedAsset(
+                kind=f"{spec.key}_sheet", category="composite", path=rel(sheet_png),
+                label=f"{spec.label} 스트립", demo=demo_art, is_image=True))
+            gif = job_dir / f"{spec.key}.gif"
+            if spritesheet.make_gif([r.path for r in results], gif, fps=8):
+                assets.append(GeneratedAsset(
+                    kind=f"{spec.key}_gif", category="composite", path=rel(gif),
+                    label=f"{spec.label} 미리보기(GIF)", demo=demo_art, is_image=True))
+        # 스프라이트 시트: 그 외 다변형 에셋을 아틀라스로 패킹(옵션)
+        elif req.sprite_sheet and len(results) > 1:
             sheet_png = job_dir / f"{spec.key}_sheet.png"
             atlas_json = job_dir / f"{spec.key}_atlas.json"
             packed = spritesheet.pack(
@@ -101,6 +115,16 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
                     path=rel(sheet_png), label=f"{spec.label} 스프라이트 시트",
                     demo=demo_art, is_image=True,
                 ))
+
+        # 타일셋: 이음새 완화 + 3x3 타일 미리보기
+        if spec.key == "tileset" and results:
+            tile_path = results[0].path
+            gemini_service.apply_tileable(tile_path)
+            preview = job_dir / "tileset_preview.png"
+            if gemini_service.tile_preview_file(tile_path, preview, 3):
+                assets.append(GeneratedAsset(
+                    kind="tileset_preview", category="composite", path=rel(preview),
+                    label="타일 3x3 미리보기", demo=demo_art, is_image=True))
 
         # 앵커 확보: 실제로 생성된(데모 아님) 첫 캐릭터 에셋의 첫 변형
         if (anchor is None and spec.character_ref

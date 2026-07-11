@@ -99,6 +99,30 @@ def set_settings_api(payload: dict) -> dict:
     return {"output_dir": settings.output_dir, "output_abs": str(settings.output_path.resolve())}
 
 
+@app.get("/api/presets")
+def list_presets() -> dict:
+    from . import runtime
+    return runtime.get_presets()
+
+
+@app.post("/api/presets")
+def save_preset_api(payload: dict) -> dict:
+    from . import runtime
+    name = (payload or {}).get("name", "").strip()
+    config = (payload or {}).get("config")
+    if not name or config is None:
+        raise HTTPException(status_code=400, detail="name/config 가 필요합니다.")
+    runtime.save_preset(name, config)
+    return {"saved": name, "presets": runtime.get_presets()}
+
+
+@app.delete("/api/presets/{name}")
+def delete_preset_api(name: str) -> dict:
+    from . import runtime
+    runtime.delete_preset(name)
+    return {"deleted": name, "presets": runtime.get_presets()}
+
+
 @app.get("/api/usage")
 def get_usage() -> dict:
     """이 앱에서 생성한 사용량 + 예상 비용 (실제 잔액 아님)."""

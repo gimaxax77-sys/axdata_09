@@ -19,9 +19,11 @@ def pack(
     out_json: Path,
     *,
     padding: int = 4,
+    single_row: bool = False,
 ) -> tuple[Path, Path] | None:
     """(라벨, 이미지경로) 목록을 아틀라스로 패킹.
 
+    single_row=True 면 애니메이션용 가로 한 줄 스트립으로 배치.
     반환: (png_path, json_path) 또는 프레임이 없으면 None.
     """
     imgs: list[tuple[str, Image.Image]] = []
@@ -35,7 +37,7 @@ def pack(
     cell_w = max(im.width for _, im in imgs)
     cell_h = max(im.height for _, im in imgs)
     n = len(imgs)
-    cols = min(n, max(1, round(math.sqrt(n))))
+    cols = n if single_row else min(n, max(1, round(math.sqrt(n))))
     rows = math.ceil(n / cols)
 
     sheet_w = cols * cell_w + padding * (cols + 1)
@@ -71,3 +73,27 @@ def pack(
     }
     out_json.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
     return out_png, out_json
+
+
+def make_gif(frames: list[Path], out_gif: Path, fps: int = 8) -> Path | None:
+    """프레임들을 반복 재생 애니메이션 GIF 로 저장."""
+    imgs = []
+    for p in frames:
+        if p and Path(p).exists():
+            imgs.append(Image.open(p).convert("RGBA"))
+    if not imgs:
+        return None
+    w = max(i.width for i in imgs)
+    h = max(i.height for i in imgs)
+    canvas = []
+    for im in imgs:
+        base = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        base.paste(im, ((w - im.width) // 2, (h - im.height) // 2), im)
+        # GIF 는 알파 대신 배경색으로 (투명 GIF 는 깜빡임) — 어두운 배경에 합성
+        bg = Image.new("RGB", (w, h), (18, 16, 28))
+        bg.paste(base, (0, 0), base)
+        canvas.append(bg)
+    out_gif.parent.mkdir(parents=True, exist_ok=True)
+    canvas[0].save(out_gif, save_all=True, append_images=canvas[1:],
+                   duration=int(1000 / max(1, fps)), loop=0, optimize=True)
+    return out_gif

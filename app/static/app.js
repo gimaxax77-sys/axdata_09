@@ -31,9 +31,84 @@ async function init() {
   wireModeToggle();
   $("#hist-refresh").addEventListener("click", renderHistoryList);
   wirePathSettings();
+  wirePresets();
   loadSettings();
+  loadPresets();
   loadUsage();
   renderHistoryList();
+}
+
+// ── 프리셋 저장/불러오기 ─────────────────────────────────
+let PRESETS = {};
+async function loadPresets(selectName) {
+  try { PRESETS = await (await fetch("/api/presets")).json(); } catch (e) { PRESETS = {}; }
+  const s = $("#preset-select");
+  s.innerHTML = '<option value="">📁 프리셋 불러오기…</option>' +
+    Object.keys(PRESETS).map((n) => `<option value="${n}">${n}</option>`).join("");
+  if (selectName) s.value = selectName;
+}
+function gatherConfig() {
+  const fd = new FormData($("#gen-form"));
+  return {
+    mode: MODE, entity: ENTITY,
+    name: fd.get("name") || "", genre: fd.get("genre"), role: fd.get("role") || "",
+    art_style: fd.get("art_style") || "", keywords: fd.get("keywords") || "",
+    image_scale: fd.get("image_scale"), variant_count: fd.get("variant_count"),
+    image_model: fd.get("image_model") || "",
+    consistency: fd.get("consistency") !== null, style_lock: fd.get("style_lock") !== null,
+    transparent: fd.get("transparent") !== null, sprite_sheet: fd.get("sprite_sheet") !== null,
+    count: fd.get("count"), make_codex: fd.get("make_codex") !== null, roles: fd.get("roles") || "",
+    assets: $$('#asset-picker input[name="asset"]:checked').map((c) => c.value),
+  };
+}
+function applyConfig(cfg) {
+  if (!cfg) return;
+  MODE = cfg.mode === "batch" ? "batch" : "single";
+  $$(".mtab").forEach((x) => x.classList.toggle("on", x.dataset.m === MODE));
+  $("#single-fields").classList.toggle("hidden", MODE === "batch");
+  $("#batch-fields").classList.toggle("hidden", MODE === "single");
+  if (cfg.entity) {
+    ENTITY = cfg.entity;
+    $$(".etab").forEach((x) => x.classList.toggle("on", x.dataset.e === ENTITY));
+    if ($("#role-label")) $("#role-label").childNodes[0].nodeValue = ROLE_LABEL[ENTITY] + " ";
+  }
+  renderAssetPicker();
+  const setV = (sel, v) => { const el = $(sel); if (el != null && v != null) el.value = v; };
+  setV('input[name="name"]', cfg.name); setV('select[name="genre"]', cfg.genre);
+  setV('input[name="role"]', cfg.role); setV('input[name="art_style"]', cfg.art_style);
+  setV('input[name="keywords"]', cfg.keywords); setV('select[name="image_scale"]', cfg.image_scale);
+  setV('select[name="variant_count"]', cfg.variant_count); setV('select[name="image_model"]', cfg.image_model);
+  setV('input[name="count"]', cfg.count);
+  const ta = $('textarea[name="roles"]'); if (ta && cfg.roles != null) ta.value = cfg.roles;
+  const setC = (n, v) => { const el = document.querySelector(`input[name="${n}"]`); if (el) el.checked = !!v; };
+  setC("consistency", cfg.consistency); setC("style_lock", cfg.style_lock);
+  setC("transparent", cfg.transparent); setC("sprite_sheet", cfg.sprite_sheet);
+  setC("make_codex", cfg.make_codex !== false);
+  if (Array.isArray(cfg.assets)) {
+    const set = new Set(cfg.assets);
+    $$('#asset-picker input[name="asset"]').forEach((c) => (c.checked = set.has(c.value)));
+  }
+}
+function wirePresets() {
+  $("#preset-select").addEventListener("change", (e) => {
+    if (e.target.value) applyConfig(PRESETS[e.target.value]);
+  });
+  $("#preset-save").addEventListener("click", async () => {
+    const name = prompt("프리셋 이름을 입력하세요:");
+    if (!name) return;
+    await fetch("/api/presets", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), config: gatherConfig() }),
+    });
+    loadPresets(name.trim());
+  });
+  $("#preset-del").addEventListener("click", async () => {
+    const name = $("#preset-select").value;
+    if (!name) { alert("삭제할 프리셋을 먼저 선택하세요."); return; }
+    if (!confirm(`프리셋 "${name}" 삭제?`)) return;
+    await fetch("/api/presets/" + encodeURIComponent(name), { method: "DELETE" });
+    loadPresets();
+  });
 }
 
 // ── 저장 경로 설정 ───────────────────────────────────────

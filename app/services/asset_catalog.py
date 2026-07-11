@@ -18,6 +18,7 @@ ENTITY_TYPES = {
 # 카테고리 (UI 그룹 및 표시 순서)
 CATEGORIES = {
     "character": "캐릭터 아트",
+    "animation": "애니메이션",
     "item": "아이템 / 장비",
     "environment": "환경 / 배경",
     "ui": "UI / 브랜딩",
@@ -84,6 +85,7 @@ ALL_ENTITIES = frozenset(ENTITY_TYPES)
 _CHAR_REF_KEYS = frozenset({
     "portrait", "fullbody", "expressions", "poses", "turnaround",
     "pixel_sprite", "emote", "card_frame", "splash", "namecard",
+    "anim_idle", "anim_walk", "anim_attack",
 })
 # 배경 제거(투명 알파) 대상 — 스프라이트/아이콘 컷아웃
 _CUTOUT_KEYS = frozenset({
@@ -91,7 +93,10 @@ _CUTOUT_KEYS = frozenset({
     "pixel_sprite", "emblem", "emote", "companion",
     "weapon_icons", "item_grid", "skill_icons", "rarity_frame",
     "ui_icons", "ui_currency",
+    "anim_idle", "anim_walk", "anim_attack",
 })
+# 애니메이션 프레임 시퀀스 에셋 (스프라이트 시트 + GIF 자동 생성)
+_ANIM_KEYS = frozenset({"anim_idle", "anim_walk", "anim_attack"})
 
 
 @dataclass(frozen=True)
@@ -123,6 +128,11 @@ class AssetSpec:
     def cutout(self) -> bool:
         """배경 제거(투명 알파) 대상 컷아웃 에셋인지."""
         return self.key in _CUTOUT_KEYS
+
+    @property
+    def is_anim(self) -> bool:
+        """프레임 시퀀스 애니메이션 에셋인지(시트+GIF 자동)."""
+        return self.key in _ANIM_KEYS
 
     def resolve_variants(self, count: int) -> tuple[str, ...]:
         """가변이면 풀에서 count 개, 아니면 고정 변형(없으면 단일)."""
@@ -208,6 +218,36 @@ _SPECS: list[AssetSpec] = [
         desc="탈것·펫·소환수",
     ),
 
+    # ── 애니메이션 (프레임 시퀀스 → 시트 + GIF) ──────────────────
+    AssetSpec(
+        "anim_idle", "대기 애니메이션", "animation", (512, 512),
+        "2D game side-view animation frame of {name}, idle pose — {variant}, "
+        "full body, {visual}, {genre}, consistent character, plain background",
+        placeholder="figure",
+        variant_pool=("neutral standing", "breathing in slightly", "subtle shift",
+                      "breathing out", "settle back", "small idle sway"),
+        desc="대기(Idle) 프레임 시퀀스 · 시트+GIF 자동",
+    ),
+    AssetSpec(
+        "anim_walk", "걷기 애니메이션", "animation", (512, 512),
+        "2D game side-view walk-cycle frame of {name}, {variant}, full body, "
+        "{visual}, {genre}, consistent character, side profile, plain background",
+        placeholder="figure",
+        variant_pool=("contact left foot forward", "recoil down", "passing pose",
+                      "high point up", "contact right foot forward", "recoil down 2",
+                      "passing pose 2", "high point up 2"),
+        desc="걷기 사이클 프레임 시퀀스 · 시트+GIF 자동",
+    ),
+    AssetSpec(
+        "anim_attack", "공격 애니메이션", "animation", (512, 512),
+        "2D game side-view attack animation frame of {name}, {variant}, full body, "
+        "{visual}, {genre}, dynamic action, consistent character, plain background",
+        placeholder="figure",
+        variant_pool=("ready stance", "wind-up back", "step forward start",
+                      "full swing impact", "follow-through", "recovery to stance"),
+        desc="공격 모션 프레임 시퀀스 · 시트+GIF 자동",
+    ),
+
     # ── 아이템 / 장비 ─────────────────────────────────────────────
     AssetSpec(
         "weapon_icons", "무기/방어구 아이콘", "item", (512, 512),
@@ -252,11 +292,12 @@ _SPECS: list[AssetSpec] = [
         desc="스테이지 배경·컷신",
     ),
     AssetSpec(
-        "tileset", "타일셋", "environment", (768, 768),
-        "seamless {genre} game tileset related to {name}'s environment, "
-        "{visual} theme, top-down tiles, terrain and props, grid layout",
+        "tileset", "타일셋 (이음새 없음)", "environment", (768, 768),
+        "seamless repeating {genre} terrain texture for {name}'s environment, "
+        "{visual} theme, top-down tileable ground texture, edges wrap perfectly, "
+        "no visible border or seam, uniform, no characters",
         placeholder="scene",
-        desc="맵 타일·프롭",
+        desc="이음새 없는 타일러블 텍스처 (3x3 미리보기 포함)",
     ),
     AssetSpec(
         "skybox", "스카이박스", "environment", (1280, 640),

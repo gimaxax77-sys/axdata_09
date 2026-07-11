@@ -233,6 +233,59 @@ def _make_transparent(path: Path) -> None:
         print(f"[gemini_service] 배경 제거 실패(원본 유지): {exc}")
 
 
+# ─────────────────────────────────────────────────────────────────────
+# 타일셋: 이음새 완화 + 타일 미리보기
+# ─────────────────────────────────────────────────────────────────────
+def apply_tileable(path: Path) -> None:
+    """파일을 읽어 이음새를 완화(오프셋+시임 블렌드)해 다시 저장."""
+    try:
+        img = Image.open(path).convert("RGB")
+        out = _make_tileable(img)
+        out.save(path)
+    except Exception as exc:  # pragma: no cover
+        print(f"[gemini_service] 타일러블 처리 실패(원본 유지): {exc}")
+
+
+def _make_tileable(img: Image.Image) -> Image.Image:
+    """오프셋으로 이음새를 중앙에 모은 뒤 블러 블렌드로 완화."""
+    from PIL import ImageFilter
+
+    w, h = img.size
+    off = Image.new("RGB", (w, h))
+    for dx, dy in [(w // 2, h // 2), (w // 2 - w, h // 2),
+                   (w // 2, h // 2 - h), (w // 2 - w, h // 2 - h)]:
+        off.paste(img, (dx, dy))
+    blurred = off.filter(ImageFilter.GaussianBlur(6))
+    band = max(8, w // 12)
+    mask = Image.new("L", (w, h), 0)
+    md = ImageDraw.Draw(mask)
+    md.rectangle([w // 2 - band, 0, w // 2 + band, h], fill=200)
+    md.rectangle([0, h // 2 - band, w, h // 2 + band], fill=200)
+    mask = mask.filter(ImageFilter.GaussianBlur(max(2, band // 2)))
+    return Image.composite(blurred, off, mask)
+
+
+def tile_preview_file(src: Path, out: Path, n: int = 3) -> Path | None:
+    """타일을 n x n 으로 반복 배치한 미리보기 이미지 생성."""
+    try:
+        tile = Image.open(src).convert("RGB")
+    except Exception:
+        return None
+    tw, th = tile.size
+    # 미리보기가 너무 커지지 않게 타일 축소
+    s = min(1.0, 256 / max(tw, th))
+    if s < 1.0:
+        tile = tile.resize((int(tw * s), int(th * s)), Image.LANCZOS)
+        tw, th = tile.size
+    canvas = Image.new("RGB", (tw * n, th * n))
+    for r in range(n):
+        for c in range(n):
+            canvas.paste(tile, (c * tw, r * th))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out)
+    return out
+
+
 def remove_background(img: Image.Image) -> Image.Image:
     """배경 제거. rembg 가 있으면 사용, 없으면 코너 플러드필 폴백."""
     try:

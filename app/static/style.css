@@ -73,6 +73,11 @@ a { color: var(--accent2b); }
   background: transparent; color: var(--sub); font-size: 12.5px; font-weight: 600; font-family: inherit; transition: .15s; }
 .mtab.on { background: var(--card); color: var(--ink); }
 
+.preset-bar { display: flex; gap: 6px; margin-bottom: 12px; align-items: center; }
+.preset-bar select { flex: 1; margin-top: 0; }
+.preset-bar .mini-btn, .preset-bar .icon-btn { flex-shrink: 0; margin-top: 0; height: 32px; }
+.preset-bar .icon-btn { width: 32px; }
+
 .entity-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
 .etab { flex: 1; padding: 8px 4px; border-radius: 8px; cursor: pointer;
   background: var(--bg); border: 1px solid var(--line); color: var(--sub);

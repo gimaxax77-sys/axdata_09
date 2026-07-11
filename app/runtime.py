@@ -33,3 +33,22 @@ def set_output_dir(path: str) -> None:
         cfg = _load()
         cfg["output_dir"] = path
         _save(cfg)
+
+
+# ── 프리셋 (캐릭터 설정 저장/불러오기) ────────────────────────────
+def get_presets() -> dict:
+    return _load().get("presets", {})
+
+
+def save_preset(name: str, config: dict) -> None:
+    with _lock:
+        cfg = _load()
+        cfg.setdefault("presets", {})[name] = config
+        _save(cfg)
+
+
+def delete_preset(name: str) -> None:
+    with _lock:
+        cfg = _load()
+        cfg.get("presets", {}).pop(name, None)
+        _save(cfg)
