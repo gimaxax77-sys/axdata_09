@@ -55,7 +55,7 @@
 - **주요 API**: `/api/generate` `/api/generate_batch` `/api/import/{preview,run}` `/api/template.csv` `/api/regenerate` `/api/edit` `/api/repack` `/api/budget` `/api/progress` `/api/cancel`.
 - **테스트**: `tests/test_smoke.py` (파이프라인·배경제거·타일러블·경로안전·카탈로그·진행률/취소·재생성·재패킹·편집·예산·CSV가져오기).
 - **개발 브랜치**: `claude/work-prep-status-check-axn3lj` → `main` 으로 fast-forward 병합해 반영.
-- **Windows 실행**: `start.bat`(실행) · `stop.bat`(종료) · `update.bat`(코드+패키지 갱신).
+- **Windows 실행**: `start.bat`(백그라운드 실행, 로그 server.log) · `stop.bat`(종료) · `update.bat`(코드+패키지 갱신). 서버 본체는 `_server.bat`, 숨김 실행은 `_hidden.vbs`.
 
 ## 남은 후보 (선택)
 

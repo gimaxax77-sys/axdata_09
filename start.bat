@@ -1,21 +1,7 @@
 @echo off
 chcp 65001 >nul
-REM ── AXData Studio 실행 (서버 시작 + 브라우저 자동 열림) ──
+REM ── AXData Studio 실행 (서버를 백그라운드로 띄우고 브라우저 자동 열림) ──
 cd /d "%~dp0"
-set "PYTHONPATH=%~dp0"
-title AXData Studio Server
-
-echo ==================================================
-echo    AXData Studio  -  starting server...
-echo ==================================================
-echo.
-echo    This PC :  http://127.0.0.1:8000
-echo    Mobile  :  use the 192.168.x.x address below
-echo    --------------------------------------------
-ipconfig | findstr /c:"IPv4"
-echo    --------------------------------------------
-echo    Stop: close this window or press Ctrl+C
-echo.
 
 REM 프로젝트 폴더가 맞는지 확인
 if not exist "%~dp0app\main.py" (
@@ -25,13 +11,27 @@ if not exist "%~dp0app\main.py" (
   exit /b 1
 )
 
-REM 3초 뒤 기본 브라우저로 자동 접속 (서버 부팅 대기)
-start "" cmd /c "timeout /t 3 >nul & start http://127.0.0.1:8000"
+REM 이미 실행 중이면 브라우저만 열고 종료 (중복 실행 방지)
+netstat -ano | findstr :8000 | findstr LISTENING >nul 2>&1
+if not errorlevel 1 (
+  echo 서버가 이미 실행 중입니다. 브라우저를 엽니다...
+  start "" http://127.0.0.1:8000
+  timeout /t 2 >nul
+  exit /b 0
+)
 
-REM 서버 실행 (--app-dir 로 app 패키지 위치를 명시 → cwd 무관하게 동작)
-REM 0.0.0.0 = 같은 와이파이의 폰에서도 접속 가능
-python -m uvicorn app.main:app --app-dir "%~dp0." --host 0.0.0.0 --port 8000
+REM 서버를 백그라운드(창 없이)로 실행 — 로그는 server.log 에 기록
+wscript.exe "%~dp0_hidden.vbs"
 
-echo.
-echo 서버가 종료되었습니다.
-pause
+REM 서버 부팅을 잠깐 기다렸다가 브라우저 자동 접속
+timeout /t 4 >nul
+start "" http://127.0.0.1:8000
+
+echo ==================================================
+echo    AXData Studio 가 백그라운드에서 실행 중입니다.
+echo    접속 : http://127.0.0.1:8000
+echo    로그 : server.log  (문제가 있으면 이 파일을 확인)
+echo    종료 : stop.bat 을 실행하세요
+echo ==================================================
+timeout /t 3 >nul
+exit
