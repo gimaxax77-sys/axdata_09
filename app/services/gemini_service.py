@@ -38,16 +38,20 @@ _TEXT_ALLOWED = frozenset({"logo", "card_frame", "namecard", "banner"})
 
 # 장르별 세계관/복장 힌트 — 이미지 프롬프트에 주입해 장르가 실제 그림에 반영되게 함
 _GENRE_HINT = {
-    "fantasy": "high fantasy setting, medieval fantasy attire",
-    "sci-fi": "futuristic sci-fi setting, high-tech suit and gear",
-    "cyberpunk": "cyberpunk neon-noir setting, augmented streetwear and cybernetics",
+    "fantasy": "high fantasy setting, medieval fantasy attire and weapons",
+    "sci-fi": ("futuristic sci-fi setting, high-tech suit and gear; any weapon is "
+               "energy/laser or high-tech firearm, NOT a medieval sword"),
+    "cyberpunk": ("cyberpunk neon-noir setting, augmented streetwear and cybernetics; "
+                  "weapons are high-tech firearms or energy blades"),
     "wuxia": ("wuxia / East-Asian martial-arts setting, traditional flowing "
               "martial-arts robes (hanfu/hanbok style), NOT western plate armor, "
-              "no knight armor"),
+              "no knight armor; any sword is a slender Chinese straight sword (jian) "
+              "or a curved saber (dao), NOT a western broadsword/longsword/greatsword"),
     "steampunk": "steampunk setting, Victorian brass-and-gear attire and goggles",
     "fairytale": "storybook fairytale setting, whimsical costume",
     "horror": "dark gothic horror setting, eerie atmosphere",
-    "post-apoc": "post-apocalyptic wasteland setting, scavenged rugged gear",
+    "post-apoc": ("post-apocalyptic wasteland setting, scavenged rugged gear; "
+                  "improvised or makeshift weapons"),
 }
 # 장르 힌트를 넣을 카테고리(캐릭터/애니메이션/환경/VFX)
 _GENRE_CATEGORIES = frozenset({"character", "animation", "environment", "vfx"})

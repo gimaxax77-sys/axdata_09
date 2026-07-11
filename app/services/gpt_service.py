@@ -55,7 +55,9 @@ and attire. For example: wuxia = traditional East-Asian martial-arts robes /
 hanbok-hanfu style flowing garments (NOT western plate armor); sci-fi =
 futuristic high-tech suit; cyberpunk = neon augmented streetwear; steampunk =
 Victorian brass-and-gear attire; fairytale = storybook costume. Describe the
-outfit concretely so it clearly matches the genre.
+outfit AND any weapon concretely so both clearly match the genre (e.g. wuxia
+swords = slender jian or curved dao, NOT western broadswords; sci-fi = energy
+weapons, NOT medieval swords).
 
 Return ONLY a JSON object with EXACTLY these keys:
 {{
