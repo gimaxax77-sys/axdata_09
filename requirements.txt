@@ -10,8 +10,8 @@ pydantic-settings==2.7.1
 python-dotenv==1.0.1
 
 # AI providers
-openai==1.59.6           # GPT - character concept / text
-google-genai==0.8.0      # Gemini - image generation
+openai>=1.40,<3          # GPT - character concept / text
+google-genai>=1.38,<3    # Gemini - image generation (gemini-2.5-flash-image 지원 필요)
 
 # Image / sheet composition
 pillow==11.1.0

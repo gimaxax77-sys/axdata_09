@@ -76,14 +76,34 @@ def _generate_image(prompt, out_path, size, settings, *, placeholder, label, pal
 
 
 def _generate_with_gemini(prompt, out_path, size, settings) -> bool:
-    from google import genai
+    # 일부 환경은 cryptography rust 바인딩 문제로 import 시 pyo3 PanicException
+    # (BaseException 계열)을 던진다. 일반 예외로 변환해 데모 폴백이 되도록 한다.
+    try:
+        from google import genai
+        from google.genai import types
+    except BaseException as exc:  # noqa: BLE001
+        raise RuntimeError(f"google-genai import 실패: {exc}") from None
 
     client = genai.Client(api_key=settings.gemini_api_key)
-    resp = client.models.generate_content(
-        model=settings.gemini_image_model, contents=prompt
-    )
+
+    # 이미지 출력 모델(gemini-2.5-flash-image)은 response_modalities 로 이미지
+    # 응답을 명시하면 안정적이다. 구버전/미지원 시 config 없이 재시도한다.
+    def _call(with_config: bool):
+        if with_config:
+            cfg = types.GenerateContentConfig(response_modalities=["IMAGE"])
+            return client.models.generate_content(
+                model=settings.gemini_image_model, contents=prompt, config=cfg)
+        return client.models.generate_content(
+            model=settings.gemini_image_model, contents=prompt)
+
+    try:
+        resp = _call(with_config=True)
+    except Exception:
+        resp = _call(with_config=False)
+
     for candidate in resp.candidates or []:
-        for part in candidate.content.parts or []:
+        content = getattr(candidate, "content", None)
+        for part in (getattr(content, "parts", None) or []):
             inline = getattr(part, "inline_data", None)
             if inline and inline.data:
                 img = Image.open(_as_bytesio(inline.data)).convert("RGB")

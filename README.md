@@ -81,6 +81,25 @@ uvicorn app.main:app --reload
 | `GEMINI_IMAGE_MODEL` | 기본 `gemini-2.5-flash-image` | — |
 | `CAPCUT_DRAFT_DIR` | CapCut 초안 폴더 경로(선택) | 앱 outputs 하위 |
 
+- **OpenAI 키**: <https://platform.openai.com/api-keys> (결제/크레딧 활성 필요)
+- **Gemini 키**: <https://aistudio.google.com/apikey> (Google AI Studio)
+- `gemini-2.5-flash-image`(Nano Banana) 사용에는 `google-genai>=1.38` 이 필요합니다
+  (`requirements.txt` 에 반영됨).
+
+## 🔌 실 API 연동 확인 (스모크 테스트)
+
+키를 넣은 뒤, 실제 호출이 되는지 한 번에 점검할 수 있습니다.
+
+```bash
+python scripts/smoke_test.py          # 제공자별 최소 호출 점검
+python scripts/smoke_test.py --full   # 실제 캐릭터 1종 전체 생성까지
+```
+
+- 키가 없으면 해당 항목은 **SKIP** (데모 모드는 그대로 동작)
+- 실패 시 원인별 힌트(키/모델/한도/설치) 출력
+- `--full` 은 실제 API 로 초상화·엠블럼·시트를 생성해 `outputs/smoke_full/` 에 저장하고,
+  각 산출물이 **LIVE / DEMO** 중 무엇으로 만들어졌는지 표시
+
 ## 📁 구조
 
 ```
