@@ -98,6 +98,13 @@ class RegenerateRequest(BaseModel):
     image_model: str = Field("")
 
 
+class RepackRequest(BaseModel):
+    """여러 변형(variant) 중 선택한 것만 남기고 시트를 재패킹."""
+
+    asset_key: str = Field(..., description="변형 에셋 키 (예: expressions)")
+    keep: list[str] = Field(..., description="남길 변형 파일명 목록 (예: expressions_1.png)")
+
+
 class EditRequest(BaseModel):
     """기존 잡의 이미지 파일 하나를 편집."""
 

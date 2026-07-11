@@ -35,6 +35,7 @@ async function init() {
   wirePresets();
   wireBudget();
   wireEditor();
+  wireCompare();
   loadSettings();
   loadPresets();
   loadUsage();
@@ -693,6 +694,81 @@ async function applyEdit() {
   }
 }
 
+// ── 변형 비교·채택 (재패킹) ──────────────────────────────
+const COMPARE = { kind: null };
+
+function openCompare(kind) {
+  if (!CURRENT_RESULT || !CURRENT_JOB_ID) return;
+  const variants = (CURRENT_RESULT.assets || [])
+    .filter((a) => a.kind === kind && a.is_image);
+  if (variants.length <= 1) return;
+  COMPARE.kind = kind;
+  const spec = CATALOG.assets.find((a) => a.key === kind);
+  $("#compare-title").textContent = (spec ? spec.label : kind) + " · 변형 비교";
+  $("#compare-grid").innerHTML = variants.map((v) => {
+    const fn = v.path.split("/").pop();
+    return `<label class="cmp-card on" data-file="${fn}">
+      <img src="${FILES}${v.path}?t=${Date.now()}" alt="${v.label}" loading="lazy"/>
+      <span class="cmp-lbl">${v.label}${v.demo ? '<span class="badge-demo">DEMO</span>' : ""}</span>
+      <input type="checkbox" checked />
+    </label>`;
+  }).join("");
+  updateCompareCount();
+  $("#compare-modal").classList.remove("hidden");
+}
+
+function updateCompareCount() {
+  const total = $$("#compare-grid .cmp-card").length;
+  const on = $$("#compare-grid .cmp-card input:checked").length;
+  $("#compare-count").textContent = `${on} / ${total} 선택`;
+  $("#compare-apply").disabled = on === 0;
+}
+
+function wireCompare() {
+  const modal = $("#compare-modal");
+  const close = () => modal.classList.add("hidden");
+  $("#compare-close").addEventListener("click", close);
+  $("#compare-cancel").addEventListener("click", close);
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+
+  $("#compare-grid").addEventListener("change", (e) => {
+    const card = e.target.closest(".cmp-card");
+    if (card) card.classList.toggle("on", e.target.checked);
+    updateCompareCount();
+  });
+  $("#compare-all").addEventListener("click", () => {
+    $$("#compare-grid .cmp-card input").forEach((c) => { c.checked = true; });
+    $$("#compare-grid .cmp-card").forEach((c) => c.classList.add("on"));
+    updateCompareCount();
+  });
+
+  $("#compare-apply").addEventListener("click", async () => {
+    const keep = $$("#compare-grid .cmp-card").filter((c) => c.querySelector("input").checked)
+      .map((c) => c.dataset.file);
+    if (!keep.length) return;
+    const total = $$("#compare-grid .cmp-card").length;
+    if (keep.length === total) { close2(); return; }  // 변화 없음
+    const btn = $("#compare-apply");
+    btn.disabled = true; btn.textContent = "재패킹 중…";
+    try {
+      const r = await fetch("/api/repack/" + encodeURIComponent(CURRENT_JOB_ID), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asset_key: COMPARE.kind, keep }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || "재패킹 실패");
+      // 갱신된 result.json 을 다시 불러 결과 재렌더
+      const data = await (await fetch(`${FILES}${CURRENT_JOB_ID}/result.json?t=${Date.now()}`)).json();
+      renderResult(data);
+      modal.classList.add("hidden");
+    } catch (err) {
+      alert("재패킹 실패: " + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "✓ 채택 (재패킹)";
+    }
+  });
+  function close2() { modal.classList.add("hidden"); }
+}
+
 // ── 실시간 진행률 (서버 폴링) ────────────────────────────
 let progressTimer = null;
 let CURRENT_PID = null;
@@ -822,11 +898,14 @@ $("#gen-form").addEventListener("change", computeEstimate);
 
 // ── 개별 에셋 재생성 ─────────────────────────────────────
 let CURRENT_JOB_ID = null;
+let CURRENT_RESULT = null;
 
 $("#result").addEventListener("click", async (e) => {
-  // 편집 버튼 우선 처리
+  // 편집 / 비교 버튼 우선 처리
   const editBtn = e.target.closest(".edit-btn");
   if (editBtn) { openEditor(editBtn.closest(".asset-card")); return; }
+  const cmpBtn = e.target.closest(".compare-btn");
+  if (cmpBtn) { openCompare(cmpBtn.dataset.compare); return; }
 
   const btn = e.target.closest(".regen-btn");
   if (!btn || !CURRENT_JOB_ID) return;
@@ -871,6 +950,7 @@ $("#result").addEventListener("click", async (e) => {
 // ── 결과 렌더링 ──────────────────────────────────────────
 function renderResult(data) {
   CURRENT_JOB_ID = data.job_id || null;
+  CURRENT_RESULT = data;
   const c = data.concept;
   const a = data.assets;
   const cats = CATALOG.categories;
@@ -902,6 +982,9 @@ function renderResult(data) {
 
   const regenKeys = new Set(CATALOG.assets.map((a) => a.key));
   const fnOf = (path) => path.split("/").pop();
+  // 같은 kind 의 이미지가 여러 장이면(variant) 비교·채택 버튼 노출
+  const kindCounts = {};
+  imgAssets.forEach((x) => { kindCounts[x.kind] = (kindCounts[x.kind] || 0) + 1; });
   const assetGroups = Object.keys(cats).filter((cat) => groups[cat]).map((cat) => `
     <div><p class="section-title">${cats[cat]}</p>
       <div class="assets-grid">${groups[cat].map((x) => `
@@ -909,6 +992,7 @@ function renderResult(data) {
           <div class="media"><img src="${FILES}${x.path}?t=${Date.now()}" alt="${x.label}" loading="lazy"/></div>
           <div class="asset-meta"><span class="lbl">${x.label}${x.demo ? '<span class="badge-demo">DEMO</span>' : ""}</span>
             <span class="asset-actions">
+              ${kindCounts[x.kind] > 1 ? `<button type="button" class="compare-btn" data-compare="${x.kind}" title="변형 비교·채택 (${kindCounts[x.kind]}장)">⊞</button>` : ""}
               <button type="button" class="edit-btn" data-edit="${fnOf(x.path)}" title="편집 (크롭·배경·보정)">✎</button>
               ${regenKeys.has(x.kind) ? `<button type="button" class="regen-btn" data-regen="${x.kind}" title="이 에셋만 다시 생성">↻</button>` : ""}
               <a href="${FILES}${x.path}" download>⬇</a></span>

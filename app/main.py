@@ -19,6 +19,7 @@ from .models import (
     GenerationRequest,
     GenerationResult,
     RegenerateRequest,
+    RepackRequest,
 )
 from .services import asset_catalog, pipeline, progress, usage
 
@@ -263,6 +264,20 @@ def regenerate(job_id: str, req: RegenerateRequest) -> dict:
     # 히스토리 캐시 무효화(result.json 변경됨)
     _HISTORY_CACHE.pop(str(settings.output_path / safe / "result.json"), None)
     return {"job_id": safe, "assets": [a.model_dump() for a in assets]}
+
+
+@app.post("/api/repack/{job_id}")
+def repack_asset(job_id: str, req: RepackRequest) -> dict:
+    """여러 변형 중 선택한 것만 남기고 시트를 재패킹."""
+    safe = Path(job_id).name
+    try:
+        out = pipeline.repack_variants(req, settings, safe)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - top-level guard
+        raise HTTPException(status_code=500, detail=f"재패킹 실패: {exc}") from exc
+    _HISTORY_CACHE.pop(str(settings.output_path / safe / "result.json"), None)
+    return {"job_id": safe, **out}
 
 
 @app.post("/api/edit/{job_id}")

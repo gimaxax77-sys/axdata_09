@@ -20,6 +20,7 @@ from ..models import (
     GenerationRequest,
     GenerationResult,
     RegenerateRequest,
+    RepackRequest,
 )
 from . import asset_catalog as cat
 from . import (
@@ -294,6 +295,80 @@ def regenerate_asset(req: RegenerateRequest, settings: Settings,
         except Exception as exc:
             log.debug("regenerate result.json 갱신 실패(무시): %s", exc)
     return new_assets
+
+
+def repack_variants(req: RepackRequest, settings: Settings, job_id: str) -> dict:
+    """여러 변형 중 선택한 것만 남기고(나머지 파일 삭제) 시트를 재패킹.
+
+    result.json 을 진실 공급원으로 삼아 라벨/데모 플래그를 보존한다.
+    애니메이션이면 스트립+GIF, 스프라이트 시트가 있었으면 아틀라스를 다시 만든다.
+    """
+    import json
+
+    job_dir = settings.output_path / job_id
+    rj = job_dir / "result.json"
+    if not rj.exists():
+        raise FileNotFoundError("result.json 이 없어 재패킹할 수 없습니다.")
+    spec = cat.CATALOG.get(req.asset_key)
+    if spec is None or not spec.is_image:
+        raise ValueError("이미지 변형 에셋만 재패킹할 수 있습니다.")
+
+    data = json.loads(rj.read_text(encoding="utf-8"))
+    assets = data.get("assets", [])
+
+    def base(path: str) -> str:
+        return Path(path).name
+
+    def rel(p: Path) -> str:
+        return str(p.relative_to(settings.output_path))
+
+    variant_entries = [a for a in assets if a.get("kind") == spec.key and a.get("is_image")]
+    if len(variant_entries) <= 1:
+        raise ValueError("여러 장(variant)인 에셋만 재패킹할 수 있습니다.")
+
+    keep = {Path(f).name for f in req.keep}
+    kept = [a for a in variant_entries if base(a["path"]) in keep]
+    dropped = [a for a in variant_entries if base(a["path"]) not in keep]
+    if not kept:
+        raise ValueError("최소 한 장은 남겨야 합니다.")
+
+    for a in dropped:
+        f = settings.output_path / a["path"]
+        try:
+            f.unlink()
+        except OSError:
+            pass
+
+    demo_art = any(a.get("demo") for a in kept)
+    kept_files = [settings.output_path / a["path"] for a in kept]
+
+    # 기존에 시트/GIF 가 있었는지 확인
+    sheet_kind, gif_kind = f"{spec.key}_sheet", f"{spec.key}_gif"
+    had_sheet = any(a.get("kind") == sheet_kind for a in assets)
+    sheet_entries: list[dict] = []
+    if len(kept_files) > 1 and (spec.is_anim or had_sheet):
+        sheet_png = job_dir / f"{spec.key}_sheet.png"
+        atlas_json = job_dir / f"{spec.key}_atlas.json"
+        spritesheet.pack([(base(a["path"]), settings.output_path / a["path"]) for a in kept],
+                         sheet_png, atlas_json, single_row=spec.is_anim)
+        sheet_entries.append(GeneratedAsset(
+            kind=sheet_kind, category="composite", path=rel(sheet_png),
+            label=f"{spec.label} " + ("스트립" if spec.is_anim else "스프라이트 시트"),
+            demo=demo_art, is_image=True).model_dump())
+        if spec.is_anim:
+            gif = job_dir / f"{spec.key}.gif"
+            if spritesheet.make_gif(kept_files, gif, fps=8):
+                sheet_entries.append(GeneratedAsset(
+                    kind=gif_kind, category="composite", path=rel(gif),
+                    label=f"{spec.label} 미리보기(GIF)", demo=demo_art, is_image=True).model_dump())
+
+    # assets 재구성: 이 키의 변형/시트 항목 제거 후 kept + 새 시트로 교체
+    drop_kinds = {spec.key, sheet_kind, gif_kind}
+    other = [a for a in assets if a.get("kind") not in drop_kinds]
+    data["assets"] = other + kept + sheet_entries
+    rj.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return {"kept": kept, "dropped": [base(a["path"]) for a in dropped], "sheet": sheet_entries}
 
 
 _FALLBACK_ROLES = {

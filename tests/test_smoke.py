@@ -12,7 +12,9 @@ import pytest
 from PIL import Image
 
 from app.config import get_settings
-from app.models import GenerationRequest, BatchRequest, RegenerateRequest, GenBase
+from app.models import (
+    GenerationRequest, BatchRequest, RegenerateRequest, RepackRequest, GenBase,
+)
 from app.services import asset_catalog as cat
 from app.services import imageops, pipeline, progress
 
@@ -144,6 +146,38 @@ def test_regenerate_asset(settings):
     rr = RegenerateRequest(asset_key="emblem", variant_count=2)
     new = pipeline.regenerate_asset(rr, settings, "job_regen")
     assert new and all(a.kind == "emblem" for a in new)
+
+
+def test_repack_variants_keeps_selected(settings):
+    import json
+    req = GenerationRequest(entity_type="character", name="재패킹", role="전사",
+                            assets=["expressions"], variant_count=5, sprite_sheet=True)
+    res = pipeline.run_pipeline(req, settings, "job_repack")
+    job_dir = settings.output_path / "job_repack"
+    import re
+    numbered = re.compile(r"expressions_\d+\.png$")
+    before = sorted(f.name for f in job_dir.glob("expressions_*.png") if numbered.match(f.name))
+    assert len(before) == 5
+    keep = ["expressions_1.png", "expressions_3.png", "expressions_5.png"]
+    out = pipeline.repack_variants(
+        RepackRequest(asset_key="expressions", keep=keep), settings, "job_repack")
+    assert len(out["kept"]) == 3
+    assert set(out["dropped"]) == {"expressions_2.png", "expressions_4.png"}
+    after = sorted(f.name for f in job_dir.glob("expressions_*.png") if numbered.match(f.name))
+    assert after == keep
+    data = json.loads((job_dir / "result.json").read_text(encoding="utf-8"))
+    expr = sorted(a["path"].split("/")[-1] for a in data["assets"]
+                  if a["kind"] == "expressions")
+    assert expr == keep
+
+
+def test_repack_requires_one_kept(settings):
+    req = GenerationRequest(entity_type="character", name="x", role="전사",
+                            assets=["expressions"], variant_count=3)
+    pipeline.run_pipeline(req, settings, "job_rp2")
+    with pytest.raises(ValueError):
+        pipeline.repack_variants(
+            RepackRequest(asset_key="expressions", keep=[]), settings, "job_rp2")
 
 
 def test_regenerate_rejects_non_image(settings):

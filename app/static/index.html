@@ -266,6 +266,26 @@
     </div>
   </div>
 
+  <!-- ── 변형 비교·채택 모달 ── -->
+  <div id="compare-modal" class="edit-modal hidden">
+    <div class="edit-box">
+      <div class="edit-head">
+        <span id="compare-title">변형 비교</span>
+        <button type="button" id="compare-close" class="icon-btn" title="닫기">✕</button>
+      </div>
+      <div class="compare-body">
+        <p class="hint sm">남길 변형을 선택하세요. 선택한 것만으로 시트를 다시 패킹하고 나머지 파일은 삭제됩니다.</p>
+        <div id="compare-grid" class="compare-grid"></div>
+        <div class="ec-apply">
+          <span id="compare-count" class="hint sm"></span>
+          <button type="button" id="compare-all" class="link-btn">전체 선택</button>
+          <button type="button" id="compare-cancel" class="link-btn">취소</button>
+          <button type="button" id="compare-apply" class="mini-btn">✓ 채택 (재패킹)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>
