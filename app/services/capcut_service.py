@@ -16,8 +16,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from ..logging_config import get_logger
 from ..models import EntityConcept
 from .fonts import load_font
+
+log = get_logger(__name__)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -91,7 +94,7 @@ def build_capcut_draft(
         if native:
             return draft_dir, True
     except Exception as exc:  # pragma: no cover - optional dependency
-        print(f"[capcut_service] 네이티브 draft 생략({exc}); 스토리보드로 대체")
+        log.info("네이티브 draft 생략(%s); 스토리보드로 대체", exc)
 
     # 스토리보드 JSON + README
     storyboard_doc = {
@@ -228,7 +231,7 @@ def _try_mp4(frames, out_mp4: Path, fps: int) -> Path | None:
         writer.close()
         return out_mp4
     except Exception as exc:  # pragma: no cover - optional dependency
-        print(f"[capcut_service] MP4 생략(ffmpeg/imageio 없음): {exc}")
+        log.info("MP4 생략(ffmpeg/imageio 없음): %s", exc)
         return None
 
 

@@ -9,7 +9,10 @@ import json
 import random
 
 from ..config import Settings
+from ..logging_config import get_logger
 from ..models import EntityConcept, GenerationRequest, LabeledText, Stat
+
+log = get_logger(__name__)
 
 # 엔티티별 필드 의미(프롬프트 가이드)
 _ENTITY_GUIDE = {
@@ -74,7 +77,7 @@ def generate_concept(req: GenerationRequest, settings: Settings) -> EntityConcep
         try:
             return _generate_with_openai(req, entity, settings)
         except Exception as exc:  # pragma: no cover - network/runtime guard
-            print(f"[gpt_service] OpenAI 호출 실패, 데모 모드 폴백: {exc}")
+            log.warning("OpenAI 호출 실패, 데모 모드 폴백: %s", exc)
     return _generate_demo(req, entity)
 
 
@@ -112,8 +115,8 @@ def _generate_with_openai(req, entity, settings) -> EntityConcept:
         if u is not None:
             usage.record_openai(getattr(u, "prompt_tokens", 0),
                                 getattr(u, "completion_tokens", 0))
-    except Exception:
-        pass
+    except Exception as exc:
+        log.debug("OpenAI 사용량 집계 실패(무시): %s", exc)
 
     data = json.loads(resp.choices[0].message.content)
     return _coerce_concept(data, req, entity)

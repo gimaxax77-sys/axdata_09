@@ -11,8 +11,18 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .models import BatchRequest, BatchResult, GenerationRequest, GenerationResult
-from .services import asset_catalog, pipeline, usage
+from .logging_config import get_logger, setup_logging
+from .models import (
+    BatchRequest,
+    BatchResult,
+    GenerationRequest,
+    GenerationResult,
+    RegenerateRequest,
+)
+from .services import asset_catalog, pipeline, progress, usage
+
+setup_logging()
+log = get_logger(__name__)
 
 
 def _safe_path(root: Path, *parts: str) -> Path:
@@ -54,6 +64,11 @@ app = FastAPI(
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+
+log.info("AXData Studio 시작 — GPT:%s Gemini:%s output=%s",
+         "live" if settings.gpt_enabled else "demo",
+         "live" if settings.gemini_enabled else "demo",
+         settings.output_dir)
 
 
 @app.get("/files/{path:path}")
@@ -160,7 +175,11 @@ def generate(req: GenerationRequest) -> GenerationResult:
     job_id = _job_id(req.entity_type, label)
     try:
         result = pipeline.run_pipeline(req, settings, job_id)
+    except progress.Cancelled as exc:
+        progress.finish(req.progress_id, error="취소됨")
+        raise HTTPException(status_code=409, detail="생성이 취소되었습니다.") from exc
     except Exception as exc:  # pragma: no cover - top-level guard
+        progress.finish(req.progress_id, error=str(exc))
         raise HTTPException(status_code=500, detail=f"생성 실패: {exc}") from exc
     return result
 
@@ -171,52 +190,112 @@ def generate_batch(req: BatchRequest) -> BatchResult:
     batch_id = _job_id("batch-" + req.entity_type, req.genre)
     try:
         result = pipeline.run_batch(req, settings, batch_id)
+    except progress.Cancelled as exc:
+        progress.finish(req.progress_id, error="취소됨")
+        raise HTTPException(status_code=409, detail="일괄 생성이 취소되었습니다.") from exc
     except Exception as exc:  # pragma: no cover - top-level guard
+        progress.finish(req.progress_id, error=str(exc))
         raise HTTPException(status_code=500, detail=f"일괄 생성 실패: {exc}") from exc
     return result
+
+
+@app.post("/api/regenerate/{job_id}")
+def regenerate(job_id: str, req: RegenerateRequest) -> dict:
+    """기존 잡의 특정 이미지 에셋 하나만 다시 생성."""
+    safe = Path(job_id).name
+    try:
+        assets = pipeline.regenerate_asset(req, settings, safe)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - top-level guard
+        raise HTTPException(status_code=500, detail=f"재생성 실패: {exc}") from exc
+    # 히스토리 캐시 무효화(result.json 변경됨)
+    _HISTORY_CACHE.pop(str(settings.output_path / safe / "result.json"), None)
+    return {"job_id": safe, "assets": [a.model_dump() for a in assets]}
+
+
+@app.get("/api/progress/{progress_id}")
+def get_progress(progress_id: str) -> dict:
+    """생성 진행률 조회 (프론트 폴링용)."""
+    snap = progress.snapshot(progress_id)
+    if snap is None:
+        return {"found": False}
+    pct = int(snap["current"] / max(1, snap["total"]) * 100)
+    return {"found": True, "percent": pct, **snap}
+
+
+@app.post("/api/cancel/{progress_id}")
+def cancel_progress(progress_id: str) -> dict:
+    """진행 중인 생성 취소 요청."""
+    ok = progress.cancel(progress_id)
+    return {"cancelled": ok}
+
+
+# 히스토리 항목 캐시: result.json 절대경로 → (mtime, 파싱된 항목 dict).
+# 폴더 스캔은 매번 하되(가벼움), 변경되지 않은 result.json 은 재파싱하지 않는다.
+_HISTORY_CACHE: dict[str, tuple[float, dict]] = {}
+
+
+def _history_item(d: Path) -> dict | None:
+    """폴더 하나의 result.json 을 히스토리 항목으로 변환(캐시 사용)."""
+    import json
+
+    rj = d / "result.json"
+    try:
+        mtime = rj.stat().st_mtime
+    except OSError:
+        return None
+    key = str(rj)
+    cached = _HISTORY_CACHE.get(key)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        data = json.loads(rj.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    is_batch = "entries" in data or "batch_id" in data
+    if is_batch:
+        name = f"{data.get('entity_type', '')} 도감 ({len(data.get('entries', []))}종)"
+        entity = data.get("entity_type", "")
+        thumb = (data.get("codex") or {}).get("path", "")
+    else:
+        c = data.get("concept", {})
+        name = c.get("name", d.name)
+        entity = c.get("entity_type", "")
+        thumb = next((a["path"] for a in data.get("assets", [])
+                      if a.get("is_image") and a.get("category") == "character"), "")
+        if not thumb:
+            thumb = next((a["path"] for a in data.get("assets", [])
+                          if a.get("kind") == "sheet_png"), "")
+    item = {
+        "id": d.name, "kind": "batch" if is_batch else "single",
+        "name": name, "entity": entity, "thumb": thumb,
+        "result_url": f"/files/{d.name}/result.json",
+        "mtime": mtime,
+    }
+    _HISTORY_CACHE[key] = (mtime, item)
+    return item
 
 
 @app.get("/api/history")
 def history(limit: int = 60) -> list[dict]:
     """생성 히스토리 — output 폴더의 result.json 을 스캔해 최신순 목록 반환."""
-    import json
-
     root = settings.output_path
-    items = []
+    items: list[dict] = []
     if not root.is_dir():
         return items
+    seen: set[str] = set()
     for d in root.iterdir():
         if not d.is_dir():
             continue
-        rj = d / "result.json"
-        if not rj.exists():
+        item = _history_item(d)
+        if item is None:
             continue
-        try:
-            data = json.loads(rj.read_text(encoding="utf-8"))
-            mtime = rj.stat().st_mtime
-        except Exception:
-            continue
-        is_batch = "entries" in data or "batch_id" in data
-        if is_batch:
-            concept0 = (data.get("entries") or [{}])[0].get("concept", {})
-            name = f"{data.get('entity_type', '')} 도감 ({len(data.get('entries', []))}종)"
-            entity = data.get("entity_type", "")
-            thumb = (data.get("codex") or {}).get("path", "")
-        else:
-            c = data.get("concept", {})
-            name = c.get("name", d.name)
-            entity = c.get("entity_type", "")
-            thumb = next((a["path"] for a in data.get("assets", [])
-                          if a.get("is_image") and a.get("category") == "character"), "")
-            if not thumb:
-                thumb = next((a["path"] for a in data.get("assets", [])
-                              if a.get("kind") == "sheet_png"), "")
-        items.append({
-            "id": d.name, "kind": "batch" if is_batch else "single",
-            "name": name, "entity": entity, "thumb": thumb,
-            "result_url": f"/files/{d.name}/result.json",
-            "mtime": mtime,
-        })
+        seen.add(str(d / "result.json"))
+        items.append(item)
+    # 삭제된 폴더의 캐시 엔트리 정리
+    for stale in [k for k in _HISTORY_CACHE if k not in seen]:
+        _HISTORY_CACHE.pop(stale, None)
     items.sort(key=lambda x: x["mtime"], reverse=True)
     return items[:limit]
 

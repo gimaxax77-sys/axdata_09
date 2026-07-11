@@ -24,3 +24,6 @@ outputs/*
 
 # Logs
 *.log
+
+# pytest
+.pytest_cache/

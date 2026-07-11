@@ -4,37 +4,29 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
-class GenerationRequest(BaseModel):
-    """사용자 입력 — 캐릭터/몬스터/NPC 생성 요청."""
+class GenBase(BaseModel):
+    """단일/일괄 생성 공통 옵션."""
 
     entity_type: str = Field("character", description="character | monster | npc")
+    genre: str = Field("fantasy", description="장르")
+    art_style: str = Field("semi-realistic digital painting", description="아트 스타일")
+    keywords: str = Field("", description="추가 키워드(쉼표)")
+    assets: list[str] = Field(default_factory=list, description="생성할 에셋 키")
+    image_scale: float = Field(1.0, ge=0.5, le=2.0, description="해상도 배율")
+    variant_count: int = Field(5, ge=1, le=10, description="가변 변형 장수")
+    consistency: bool = Field(True, description="캐릭터 일관성(레퍼런스)")
+    transparent: bool = Field(False, description="투명 배경(알파)")
+    sprite_sheet: bool = Field(False, description="스프라이트 시트 패킹")
+    style_lock: bool = Field(False, description="스타일 락")
+    image_model: str = Field("", description="이미지 모델 오버라이드")
+    progress_id: str = Field("", description="진행률/취소 추적용 클라이언트 토큰(선택)")
+
+
+class GenerationRequest(GenBase):
+    """단일 생성 요청."""
+
     name: str = Field("", description="이름 (비우면 GPT가 지어줌)")
-    genre: str = Field("fantasy", description="장르: fantasy, sci-fi, cyberpunk, ...")
-    role: str = Field("", description="직업/종족/유형: 전사, 드래곤, 상인, ...")
-    art_style: str = Field(
-        "semi-realistic digital painting", description="아트 스타일 키워드"
-    )
-    keywords: str = Field("", description="추가 컨셉 키워드 (쉼표 구분)")
-
-    # 생성할 에셋 키 목록 (asset_catalog 참조). 비우면 엔티티 기본값 사용.
-    assets: list[str] = Field(default_factory=list)
-
-    # 이미지 해상도 배율 (1.0=표준, 1.5=크게)
-    image_scale: float = Field(1.0, ge=0.5, le=2.0)
-
-    # 가변 변형 에셋(표정/포즈/스킬 등)의 생성 장수
-    variant_count: int = Field(5, ge=1, le=10)
-
-    # 캐릭터 일관성: 앵커 초상화를 레퍼런스로 재사용 (실 API 에서만 효과)
-    consistency: bool = True
-    # 투명 배경: 컷아웃 에셋의 배경 제거 → 알파 PNG
-    transparent: bool = False
-    # 스프라이트 시트: 다변형 에셋을 아틀라스 PNG + 메타 JSON 으로 패킹
-    sprite_sheet: bool = False
-    # 스타일 락: 앵커를 전체 에셋에 스타일/팔레트 기준으로 주입
-    style_lock: bool = False
-    # 이미지 모델 오버라이드 (빈 값이면 서버 기본). "gpt-image-1" 이면 OpenAI 백엔드
-    image_model: str = ""
+    role: str = Field("", description="직업/종족/유형")
 
 
 class Stat(BaseModel):
@@ -85,25 +77,25 @@ class GenerationResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class BatchRequest(BaseModel):
+class BatchRequest(GenBase):
     """일괄 생성(도감) 요청 — 여러 개체를 한 번에 생성."""
 
     entity_type: str = Field("monster", description="character | monster | npc")
-    genre: str = "fantasy"
-    art_style: str = "semi-realistic digital painting"
-    keywords: str = ""
     count: int = Field(3, ge=1, le=8, description="생성 개수 (1~8)")
     roles: list[str] = Field(default_factory=list, description="개체별 역할/종족 (선택)")
     names: list[str] = Field(default_factory=list, description="개체별 이름 (선택)")
-    assets: list[str] = Field(default_factory=list, description="각 개체에 적용할 에셋")
     make_codex: bool = Field(True, description="도감 오버뷰 이미지 생성")
+
+
+class RegenerateRequest(BaseModel):
+    """기존 잡의 특정 이미지 에셋 하나만 다시 생성."""
+
+    asset_key: str = Field(..., description="다시 생성할 에셋 키")
     image_scale: float = Field(1.0, ge=0.5, le=2.0)
     variant_count: int = Field(5, ge=1, le=10)
-    consistency: bool = True
-    transparent: bool = False
-    sprite_sheet: bool = False
-    style_lock: bool = False
-    image_model: str = ""
+    transparent: bool = Field(False)
+    style_lock: bool = Field(False)
+    image_model: str = Field("")
 
 
 class BatchResult(BaseModel):

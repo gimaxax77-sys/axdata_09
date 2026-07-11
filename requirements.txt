@@ -34,3 +34,9 @@ httpx>=0.28,<1
 # 쇼케이스 MP4 출력 (imageio-ffmpeg 가 ffmpeg 바이너리를 번들). 미설치 시 GIF 만.
 imageio>=2.31
 imageio-ffmpeg>=0.4
+
+# 배경 제거 가속(선택) — 설치 시 flood_alpha 벡터화로 고해상에서 빨라짐
+# numpy>=1.26
+
+# 개발/테스트 (선택): pip install pytest 후 `pytest` 로 스모크 테스트 실행
+# pytest>=8.0

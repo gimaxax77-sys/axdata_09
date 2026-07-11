@@ -11,12 +11,15 @@ import random
 from concurrent.futures import ThreadPoolExecutor
 
 from ..config import Settings
+from ..logging_config import get_logger
 from ..models import (
     BatchRequest,
     BatchResult,
+    EntityConcept,
     GeneratedAsset,
     GenerationRequest,
     GenerationResult,
+    RegenerateRequest,
 )
 from . import asset_catalog as cat
 from . import (
@@ -24,9 +27,12 @@ from . import (
     codex_composer,
     gemini_service,
     gpt_service,
+    progress,
     sheet_composer,
     spritesheet,
 )
+
+log = get_logger(__name__)
 
 
 def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> GenerationResult:
@@ -44,8 +50,17 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
     valid = {s.key for s in cat.specs_for_entity(entity)}
     selected = [k for k in req.assets if k in valid] or cat.default_keys(entity)
 
+    # 진행률: 기획(1) + 이미지 에셋(N) + 시트(0/1) + 영상(0/1)
+    pid = req.progress_id
+    image_keys = [k for k in selected if cat.CATALOG[k].is_image]
+    total_steps = 1 + len(image_keys) + (1 if "sheet" in selected else 0) \
+        + (1 if "video" in selected else 0)
+    progress.start(pid, total_steps, "기획 생성 중…")
+
     # 1) GPT — 기획서
+    progress.check(pid)
     concept = gpt_service.generate_concept(req, settings)
+    progress.advance(pid, "기획 완료")
     if not settings.gpt_enabled:
         warnings.append("OPENAI_API_KEY 미설정 — 기획은 데모 생성기로 만들어졌습니다.")
     (job_dir / "concept.json").write_text(
@@ -62,7 +77,9 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
     image_map: dict[str, Path] = {}  # 시트/영상에서 재사용할 대표 이미지
     demo_art = False
     anchor = None  # PIL.Image — 캐릭터/스타일 앵커 레퍼런스
-    for spec in image_specs:
+    for idx, spec in enumerate(image_specs):
+        progress.check(pid)
+        progress.step(pid, 1 + idx, f"{spec.label} 생성 중…")
         # 레퍼런스 결정: 캐릭터 에셋=정체성, 그 외+스타일락=스타일-only
         use_ref = None
         style_only = False
@@ -145,6 +162,8 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
 
     # 3) 캐릭터 시트 (PNG + PDF)
     if "sheet" in selected:
+        progress.check(pid)
+        progress.advance(pid, "캐릭터 시트 조합 중…")
         png = job_dir / "character_sheet.png"
         pdf = job_dir / "character_sheet.pdf"
         sheet_composer.compose_sheet(concept, picks, png, pdf)
@@ -157,6 +176,8 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
 
     # 4) CapCut draft + 미리보기 영상
     if "video" in selected and picks:
+        progress.check(pid)
+        progress.advance(pid, "쇼케이스 영상 만드는 중…")
         storyboard = capcut_service.build_storyboard(concept, picks)
         draft_dir = job_dir / "capcut_draft"
         _, native = capcut_service.build_capcut_draft(concept, picks, draft_dir, storyboard)
@@ -185,9 +206,94 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
     # 히스토리용 결과 저장
     try:
         (job_dir / "result.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    except Exception as exc:
+        log.debug("result.json 저장 실패(무시): %s", exc)
+    progress.finish(pid)
     return result
+
+
+def regenerate_asset(req: RegenerateRequest, settings: Settings,
+                     job_id: str) -> list[GeneratedAsset]:
+    """기존 잡 폴더의 이미지 에셋 하나를 다시 생성하고 result.json 을 갱신한다.
+
+    concept.json 을 앵커로 재사용한다. 애니메이션/타일셋 후처리는 해당
+    스펙이면 함께 재실행한다. (시트/영상 등 통합 산출물은 대상 아님.)
+    """
+    import json
+
+    job_dir = settings.output_path / job_id
+    if not job_dir.is_dir():
+        raise FileNotFoundError("잡 폴더를 찾을 수 없습니다.")
+
+    key = req.asset_key
+    spec = cat.CATALOG.get(key)
+    if spec is None or not spec.is_image:
+        raise ValueError("이미지 에셋만 다시 생성할 수 있습니다.")
+
+    concept_path = job_dir / "concept.json"
+    if not concept_path.exists():
+        raise FileNotFoundError("concept.json 이 없어 다시 생성할 수 없습니다.")
+    concept = EntityConcept(**json.loads(concept_path.read_text(encoding="utf-8")))
+
+    def rel(p: Path) -> str:
+        return str(p.relative_to(settings.output_path))
+
+    # 이전 산출물(변형 포함) 제거 후 재생성
+    for old in job_dir.glob(f"{key}*.png"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+    results = gemini_service.generate_asset(
+        spec, concept, job_dir, settings,
+        scale=req.image_scale, variant_count=req.variant_count,
+        reference=None, style_only=False,
+        transparent=req.transparent, model=req.image_model,
+    )
+    new_assets: list[GeneratedAsset] = []
+    demo_art = any(r.demo for r in results)
+    for res in results:
+        new_assets.append(GeneratedAsset(
+            kind=spec.key, category=spec.category, path=rel(res.path),
+            label=res.label, demo=res.demo, is_image=True))
+
+    # 애니메이션/타일셋 부가 산출물 재생성
+    if spec.is_anim and len(results) > 1:
+        sheet_png = job_dir / f"{spec.key}_sheet.png"
+        atlas_json = job_dir / f"{spec.key}_atlas.json"
+        spritesheet.pack([(r.variant or spec.label, r.path) for r in results],
+                         sheet_png, atlas_json, single_row=True)
+        new_assets.append(GeneratedAsset(
+            kind=f"{spec.key}_sheet", category="composite", path=rel(sheet_png),
+            label=f"{spec.label} 스트립", demo=demo_art, is_image=True))
+        gif = job_dir / f"{spec.key}.gif"
+        if spritesheet.make_gif([r.path for r in results], gif, fps=8):
+            new_assets.append(GeneratedAsset(
+                kind=f"{spec.key}_gif", category="composite", path=rel(gif),
+                label=f"{spec.label} 미리보기(GIF)", demo=demo_art, is_image=True))
+    if spec.key == "tileset" and results:
+        gemini_service.apply_tileable(results[0].path)
+        preview = job_dir / "tileset_preview.png"
+        if gemini_service.tile_preview_file(results[0].path, preview, 3):
+            new_assets.append(GeneratedAsset(
+                kind="tileset_preview", category="composite", path=rel(preview),
+                label="타일 3x3 미리보기", demo=demo_art, is_image=True))
+
+    # result.json 갱신: 같은 kind 계열(스펙 키로 시작) 항목 교체
+    rj = job_dir / "result.json"
+    prefixes = {spec.key, f"{spec.key}_sheet", f"{spec.key}_gif"}
+    if spec.key == "tileset":
+        prefixes.add("tileset_preview")
+    if rj.exists():
+        try:
+            data = json.loads(rj.read_text(encoding="utf-8"))
+            kept = [a for a in data.get("assets", []) if a.get("kind") not in prefixes]
+            data["assets"] = kept + [a.model_dump() for a in new_assets]
+            rj.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception as exc:
+            log.debug("regenerate result.json 갱신 실패(무시): %s", exc)
+    return new_assets
 
 
 _FALLBACK_ROLES = {
@@ -232,9 +338,18 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
             image_model=req.image_model,
         )
 
+    # 진행률: 개체 N + 도감(0/1). 개체 하위 파이프라인은 progress_id 를
+    # 비워 두어(make_req 기본값) 배치 진행률과 충돌하지 않게 한다.
+    pid = req.progress_id
+    total_steps = count + (1 if req.make_codex else 0)
+    progress.start(pid, total_steps, "개체 생성 중…")
+
     # 각 개체를 병렬 생성 (Pillow 인코딩은 GIL 을 해제하므로 스레드로 가속)
     def worker(i: int) -> GenerationResult:
-        return run_pipeline(make_req(i), settings, f"{batch_id}/e{i}")
+        progress.check(pid)
+        res = run_pipeline(make_req(i), settings, f"{batch_id}/e{i}")
+        progress.advance(pid, f"{i + 1}/{count} 개체 완료")
+        return res
 
     with ThreadPoolExecutor(max_workers=min(4, count)) as pool:
         entries = list(pool.map(worker, range(count)))
@@ -262,8 +377,9 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
     try:
         (settings.output_path / batch_id / "result.json").write_text(
             result.model_dump_json(indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    except Exception as exc:
+        log.debug("batch result.json 저장 실패(무시): %s", exc)
+    progress.finish(pid)
     return result
 
 

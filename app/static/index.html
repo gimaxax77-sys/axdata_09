@@ -141,12 +141,17 @@
       <div id="loading" class="loading hidden">
         <div class="spinner"></div>
         <p id="loading-text">기획하는 중…</p>
+        <div class="progress-wrap">
+          <div id="progress-bar" class="progress-bar"><span></span></div>
+          <div id="progress-pct" class="progress-pct">0%</div>
+        </div>
         <ul id="steps" class="steps">
           <li data-step="gpt">기획 (GPT)</li>
           <li data-step="gemini">아트 생성 (Gemini)</li>
           <li data-step="sheet">시트 조합</li>
           <li data-step="video">CapCut 영상</li>
         </ul>
+        <button type="button" id="cancel-btn" class="link-btn">✕ 생성 취소</button>
       </div>
       <div id="result" class="result hidden"></div>
     </section>

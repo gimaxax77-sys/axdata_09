@@ -152,6 +152,24 @@ textarea { resize: vertical; }
 .steps li.active { color: var(--ink); }
 .steps li.active::before { content: "◐"; color: var(--accent); }
 
+/* 실시간 진행률 바 */
+.progress-wrap { display: flex; align-items: center; gap: 9px; width: 240px; max-width: 80%; }
+.progress-bar { flex: 1; height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.progress-bar > span { display: block; height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent2), var(--accent2b)); border-radius: 999px;
+  transition: width .35s ease; }
+.progress-pct { font-size: 12px; color: var(--accent); font-weight: 700; min-width: 34px; text-align: right; }
+#cancel-btn { color: var(--sub); }
+#cancel-btn:hover { color: #ff6b6b; }
+#cancel-btn:disabled { opacity: .5; cursor: default; text-decoration: none; }
+
+/* 개별 재생성 버튼 */
+.asset-actions { display: inline-flex; align-items: center; gap: 8px; }
+.regen-btn { background: none; border: none; cursor: pointer; color: var(--accent2b);
+  font-size: 13px; font-family: inherit; padding: 0; line-height: 1; transition: transform .3s; }
+.regen-btn:hover { color: var(--accent); transform: rotate(180deg); }
+.regen-btn:disabled { opacity: .5; cursor: default; }
+
 .result { display: flex; flex-direction: column; gap: 16px; }
 .warn { background: rgba(245,166,35,.09); border: 1px solid rgba(245,166,35,.32); border-radius: 9px; padding: 9px 12px; font-size: 12px; color: #f0c789; }
 .warn ul { margin: 5px 0 0; padding-left: 16px; }

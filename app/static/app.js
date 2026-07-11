@@ -353,27 +353,41 @@ function setDefaults() {
   $$('#asset-picker input[name="asset"]').forEach((c) => (c.checked = defs.has(c.value)));
 }
 
-// ── 진행 애니메이션 ──────────────────────────────────────
-const STEP_TEXT = {
-  gpt: "GPT가 기획하는 중…", gemini: "Gemini가 아트를 생성하는 중…",
-  sheet: "시트를 조합하는 중…", video: "CapCut 쇼케이스를 구성하는 중…",
-};
-let stepTimer = null;
-function runSteps() {
-  const order = ["gpt", "gemini", "sheet", "video"];
-  let i = 0;
-  const step = () => {
-    $$(".steps li").forEach((li) => {
-      const idx = order.indexOf(li.dataset.step);
-      li.classList.toggle("done", idx < i);
-      li.classList.toggle("active", idx === i);
-    });
-    if (order[i]) $("#loading-text").textContent = STEP_TEXT[order[i]];
-    i = Math.min(i + 1, order.length - 1);
-  };
-  step();
-  stepTimer = setInterval(step, 1500);
+// ── 실시간 진행률 (서버 폴링) ────────────────────────────
+let progressTimer = null;
+let CURRENT_PID = null;
+
+function setProgress(pct, label) {
+  const bar = $("#progress-bar").firstElementChild;
+  if (bar) bar.style.width = Math.max(0, Math.min(100, pct)) + "%";
+  $("#progress-pct").textContent = pct + "%";
+  if (label) $("#loading-text").textContent = label;
 }
+
+function pollProgress(pid) {
+  CURRENT_PID = pid;
+  setProgress(0, "생성 준비 중…");
+  progressTimer = setInterval(async () => {
+    try {
+      const p = await (await fetch("/api/progress/" + encodeURIComponent(pid))).json();
+      if (!p.found) return;
+      setProgress(p.percent || 0, p.label || "");
+      if (p.done) stopProgress();
+    } catch (e) { /* 폴링 실패 무시 */ }
+  }, 700);
+}
+
+function stopProgress() {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+}
+
+$("#cancel-btn").addEventListener("click", async () => {
+  if (!CURRENT_PID) return;
+  $("#cancel-btn").disabled = true;
+  $("#loading-text").textContent = "취소 요청 중…";
+  try { await fetch("/api/cancel/" + encodeURIComponent(CURRENT_PID), { method: "POST" }); }
+  catch (e) {}
+});
 
 // ── 제출 ─────────────────────────────────────────────────
 $("#gen-form").addEventListener("submit", async (e) => {
@@ -390,8 +404,10 @@ $("#gen-form").addEventListener("submit", async (e) => {
   const spriteSheet = fd.get("sprite_sheet") !== null;
   const styleLock = fd.get("style_lock") !== null;
   const imageModel = fd.get("image_model") || "";
+  const progressId = "pg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
   const adv = { consistency, transparent, sprite_sheet: spriteSheet,
-                style_lock: styleLock, image_model: imageModel };
+                style_lock: styleLock, image_model: imageModel,
+                progress_id: progressId };
   let url, payload;
   if (batch) {
     const roles = (fd.get("roles") || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -422,13 +438,19 @@ $("#gen-form").addEventListener("submit", async (e) => {
   $("#result").classList.add("hidden");
   $("#loading").classList.remove("hidden");
   $("#submit-btn").disabled = true;
-  runSteps();
+  $("#cancel-btn").disabled = false;
+  pollProgress(progressId);
 
   try {
     const res = await fetch(url, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    if (res.status === 409) { // 사용자 취소
+      $("#result").innerHTML = `<div class="warn">✕ 생성이 취소되었습니다.</div>`;
+      $("#result").classList.remove("hidden");
+      return;
+    }
     if (!res.ok) throw new Error((await res.json()).detail || "생성 실패");
     const data = await res.json();
     if (batch) renderBatch(data); else renderResult(data);
@@ -438,7 +460,8 @@ $("#gen-form").addEventListener("submit", async (e) => {
     $("#result").innerHTML = `<div class="warn">⚠ ${err.message}</div>`;
     $("#result").classList.remove("hidden");
   } finally {
-    clearInterval(stepTimer);
+    stopProgress();
+    CURRENT_PID = null;
     $("#loading").classList.add("hidden");
     $("#submit-btn").disabled = false;
   }
@@ -448,8 +471,53 @@ $("#sel-all").addEventListener("click", (e) => { e.preventDefault(); setAll(true
 $("#sel-none").addEventListener("click", (e) => { e.preventDefault(); setAll(false); });
 $("#sel-default").addEventListener("click", (e) => { e.preventDefault(); setDefaults(); });
 
+// ── 개별 에셋 재생성 ─────────────────────────────────────
+let CURRENT_JOB_ID = null;
+
+$("#result").addEventListener("click", async (e) => {
+  const btn = e.target.closest(".regen-btn");
+  if (!btn || !CURRENT_JOB_ID) return;
+  const kind = btn.dataset.regen;
+  const card = btn.closest(".asset-card");
+  const fd = new FormData($("#gen-form"));
+  const payload = {
+    asset_key: kind,
+    image_scale: parseFloat(fd.get("image_scale") || "1.0"),
+    variant_count: parseInt(fd.get("variant_count") || "5", 10),
+    transparent: fd.get("transparent") !== null,
+    style_lock: fd.get("style_lock") !== null,
+    image_model: fd.get("image_model") || "",
+  };
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    const res = await fetch("/api/regenerate/" + encodeURIComponent(CURRENT_JOB_ID), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || "재생성 실패");
+    const out = await res.json();
+    // 대표(첫) 산출물 이미지를 카드에서 즉시 갱신 (캐시 회피용 타임스탬프)
+    const first = (out.assets || []).find((a) => a.kind === kind) || (out.assets || [])[0];
+    if (first && card) {
+      const img = card.querySelector("img");
+      if (img) img.src = FILES + first.path + "?t=" + Date.now();
+      const demo = card.querySelector(".badge-demo");
+      if (first.demo && !demo) card.querySelector(".lbl").insertAdjacentHTML("beforeend", '<span class="badge-demo">DEMO</span>');
+      if (!first.demo && demo) demo.remove();
+    }
+    loadUsage();
+  } catch (err) {
+    alert("재생성 실패: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "↻";
+  }
+});
+
 // ── 결과 렌더링 ──────────────────────────────────────────
 function renderResult(data) {
+  CURRENT_JOB_ID = data.job_id || null;
   const c = data.concept;
   const a = data.assets;
   const cats = CATALOG.categories;
@@ -479,13 +547,17 @@ function renderResult(data) {
   const groups = {};
   imgAssets.forEach((x) => { (groups[x.category] ||= []).push(x); });
 
+  const regenKeys = new Set(CATALOG.assets.map((a) => a.key));
   const assetGroups = Object.keys(cats).filter((cat) => groups[cat]).map((cat) => `
     <div><p class="section-title">${cats[cat]}</p>
       <div class="assets-grid">${groups[cat].map((x) => `
-        <div class="asset-card">
-          <div class="media"><img src="${FILES}${x.path}" alt="${x.label}" loading="lazy"/></div>
+        <div class="asset-card" data-kind="${x.kind}">
+          <div class="media"><img src="${FILES}${x.path}?t=${Date.now()}" alt="${x.label}" loading="lazy"/></div>
           <div class="asset-meta"><span class="lbl">${x.label}${x.demo ? '<span class="badge-demo">DEMO</span>' : ""}</span>
-            <a href="${FILES}${x.path}" download>⬇</a></div>
+            <span class="asset-actions">
+              ${regenKeys.has(x.kind) ? `<button type="button" class="regen-btn" data-regen="${x.kind}" title="이 에셋만 다시 생성">↻</button>` : ""}
+              <a href="${FILES}${x.path}" download>⬇</a></span>
+          </div>
         </div>`).join("")}
       </div>
     </div>`).join("");
@@ -566,6 +638,7 @@ function assetGroupsHTML(assets, compact = false) {
 
 // ── 일괄 생성(도감) 결과 ─────────────────────────────────
 function renderBatch(data) {
+  CURRENT_JOB_ID = null;  // 개별 재생성은 단일 잡에만 적용
   const cats = CATALOG.categories;
   const entityLabel = CATALOG.entity_types[data.entity_type] || "";
 
