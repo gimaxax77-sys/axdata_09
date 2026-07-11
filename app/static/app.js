@@ -178,6 +178,8 @@ $("#gen-form").addEventListener("submit", async (e) => {
   const batch = MODE === "batch";
   const imageScale = parseFloat(fd.get("image_scale") || "1.0");
   const variantCount = parseInt(fd.get("variant_count") || "5", 10);
+  const consistency = fd.get("consistency") !== null;
+  const transparent = fd.get("transparent") !== null;
   let url, payload;
   if (batch) {
     const roles = (fd.get("roles") || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -190,6 +192,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       roles, names: [], assets,
       make_codex: fd.get("make_codex") !== null,
       image_scale: imageScale, variant_count: variantCount,
+      consistency, transparent,
     };
   } else {
     url = "/api/generate";
@@ -199,6 +202,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       art_style: fd.get("art_style") || "semi-realistic digital painting",
       keywords: fd.get("keywords") || "", assets,
       image_scale: imageScale, variant_count: variantCount,
+      consistency, transparent,
     };
   }
 

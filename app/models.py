@@ -25,6 +25,11 @@ class GenerationRequest(BaseModel):
     # 가변 변형 에셋(표정/포즈/스킬 등)의 생성 장수
     variant_count: int = Field(5, ge=1, le=10)
 
+    # 캐릭터 일관성: 앵커 초상화를 레퍼런스로 재사용 (실 API 에서만 효과)
+    consistency: bool = True
+    # 투명 배경: 컷아웃 에셋의 배경 제거 → 알파 PNG
+    transparent: bool = False
+
 
 class Stat(BaseModel):
     name: str
@@ -87,6 +92,8 @@ class BatchRequest(BaseModel):
     make_codex: bool = Field(True, description="도감 오버뷰 이미지 생성")
     image_scale: float = Field(1.0, ge=0.5, le=2.0)
     variant_count: int = Field(5, ge=1, le=10)
+    consistency: bool = True
+    transparent: bool = False
 
 
 class BatchResult(BaseModel):

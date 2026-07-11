@@ -39,12 +39,20 @@ def generate_asset(
     settings: Settings,
     scale: float = 1.0,
     variant_count: int = 5,
+    reference: "Image.Image | None" = None,
+    transparent: bool = False,
 ) -> list[ImageResult]:
-    """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장. scale 로 해상도 조절."""
+    """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장.
+
+    reference: 동일 캐릭터 유지를 위한 앵커 이미지(image-to-image).
+    transparent: 컷아웃 에셋이면 배경 제거해 알파 PNG 로 저장.
+    """
     variants = spec.resolve_variants(variant_count)
     multi = len(variants) > 1
     w, h = spec.size
     size = (max(64, int(w * scale)), max(64, int(h * scale)))
+    use_ref = reference if spec.character_ref else None
+    do_cutout = transparent and spec.cutout
     results: list[ImageResult] = []
     for i, variant in enumerate(variants):
         prompt = cat.build_prompt(
@@ -55,6 +63,13 @@ def generate_asset(
             genre=concept.genre,
             variant=variant,
         )
+        if use_ref is not None:
+            prompt = (
+                "Using the reference image as the EXACT SAME character — keep the "
+                "identical face, hairstyle, outfit, and colors. " + prompt
+            )
+        if do_cutout:
+            prompt += ", isolated subject on a flat solid plain background"
         suffix = f"_{i+1}" if multi else ""
         out = job_dir / f"{spec.key}{suffix}.png"
         label = f"{spec.label} · {variant}" if variant else spec.label
@@ -63,16 +78,20 @@ def generate_asset(
             placeholder=spec.placeholder,
             label=f"{concept.name}" + (f" · {variant}" if variant else f" · {spec.label}"),
             palette=concept.color_palette,
+            reference=use_ref,
         )
+        if do_cutout and out.exists():
+            _make_transparent(out)
         results.append(ImageResult(path=out, label=label, demo=not is_real, variant=variant))
     return results
 
 
-def _generate_image(prompt, out_path, size, settings, *, placeholder, label, palette) -> bool:
+def _generate_image(prompt, out_path, size, settings, *, placeholder, label, palette,
+                    reference=None) -> bool:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if settings.gemini_enabled:
         try:
-            if _generate_with_gemini(prompt, out_path, size, settings):
+            if _generate_with_gemini(prompt, out_path, size, settings, reference=reference):
                 return True
         except Exception as exc:  # pragma: no cover - network guard
             print(f"[gemini_service] Gemini 호출 실패, 데모 폴백: {exc}")
@@ -80,7 +99,7 @@ def _generate_image(prompt, out_path, size, settings, *, placeholder, label, pal
     return False
 
 
-def _generate_with_gemini(prompt, out_path, size, settings) -> bool:
+def _generate_with_gemini(prompt, out_path, size, settings, reference=None) -> bool:
     # 일부 환경은 cryptography rust 바인딩 문제로 import 시 pyo3 PanicException
     # (BaseException 계열)을 던진다. 일반 예외로 변환해 데모 폴백이 되도록 한다.
     try:
@@ -91,15 +110,23 @@ def _generate_with_gemini(prompt, out_path, size, settings) -> bool:
 
     client = genai.Client(api_key=settings.gemini_api_key)
 
+    # 레퍼런스 이미지가 있으면 contents 에 함께 전달(image-to-image, 캐릭터 일관성)
+    contents = [prompt]
+    if reference is not None:
+        try:
+            contents = [prompt, reference]  # google-genai 는 PIL 이미지 허용
+        except Exception:
+            contents = [prompt]
+
     # 이미지 출력 모델(gemini-2.5-flash-image)은 response_modalities 로 이미지
     # 응답을 명시하면 안정적이다. 구버전/미지원 시 config 없이 재시도한다.
     def _call(with_config: bool):
         if with_config:
             cfg = types.GenerateContentConfig(response_modalities=["IMAGE"])
             return client.models.generate_content(
-                model=settings.gemini_image_model, contents=prompt, config=cfg)
+                model=settings.gemini_image_model, contents=contents, config=cfg)
         return client.models.generate_content(
-            model=settings.gemini_image_model, contents=prompt)
+            model=settings.gemini_image_model, contents=contents)
 
     try:
         resp = _call(with_config=True)
@@ -120,6 +147,54 @@ def _generate_with_gemini(prompt, out_path, size, settings) -> bool:
                     pass
                 return True
     return False
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 배경 제거 (투명 알파)
+# ─────────────────────────────────────────────────────────────────────
+def _make_transparent(path: Path) -> None:
+    """파일을 읽어 배경을 제거하고 알파 PNG 로 다시 저장."""
+    try:
+        img = Image.open(path).convert("RGB")
+        out = remove_background(img)
+        out.save(path)  # .png 확장자이므로 알파 유지
+    except Exception as exc:  # pragma: no cover - 방어
+        print(f"[gemini_service] 배경 제거 실패(원본 유지): {exc}")
+
+
+def remove_background(img: Image.Image) -> Image.Image:
+    """배경 제거. rembg 가 있으면 사용, 없으면 코너 플러드필 폴백."""
+    try:
+        from rembg import remove  # type: ignore
+
+        return remove(img.convert("RGBA"))
+    except Exception:
+        return _flood_alpha(img)
+
+
+def _flood_alpha(img: Image.Image, tol: int = 42) -> Image.Image:
+    """네 모서리에서 플러드필로 균일한 배경을 투명 처리 (의존성 없음).
+
+    프롬프트가 'plain background' 를 요청하므로 배경이 대체로 균일하다는
+    가정. 복잡/그라데이션 배경(데모 플레이스홀더 등)에는 효과가 약할 수 있다.
+    """
+    rgb = img.convert("RGB")
+    w, h = rgb.size
+    sentinel = (0, 254, 1)  # 실제로 잘 안 나오는 표식 색
+    work = rgb.copy()
+    for seed in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1),
+                 (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]:
+        try:
+            ImageDraw.floodfill(work, seed, sentinel, thresh=tol)
+        except Exception:
+            pass
+    # sentinel 로 칠해진 영역 → 알파 0 (flat 데이터로 처리해 속도 확보)
+    alpha_data = [0 if p == sentinel else 255 for p in work.getdata()]
+    alpha = Image.new("L", (w, h))
+    alpha.putdata(alpha_data)
+    rgba = rgb.convert("RGBA")
+    rgba.putalpha(alpha)
+    return rgba
 
 
 def _as_bytesio(data):

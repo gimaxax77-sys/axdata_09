@@ -24,6 +24,10 @@ reportlab>=4.2,<5        # PDF export
 # HTTP
 httpx>=0.28,<1
 
+# 정밀 배경 제거(투명 배경) — 미설치 시 Pillow 플러드필로 폴백
+# rembg>=2.0
+# onnxruntime>=1.17
+
 # CapCut draft generation (optional; app degrades gracefully if missing)
 # pyJianYingDraft>=0.2
 

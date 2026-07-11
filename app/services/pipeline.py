@@ -52,24 +52,43 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
     )
 
     # 2) 이미지 에셋 생성 (선택된 것만)
+    #    캐릭터 일관성: 첫 캐릭터 에셋(초상화 우선)을 앵커로 삼아 나머지
+    #    캐릭터 에셋에 레퍼런스로 전달한다.
+    image_specs = [cat.CATALOG[k] for k in selected if cat.CATALOG[k].is_image]
+    if req.consistency:
+        image_specs.sort(key=lambda s: (not s.character_ref, s.key != "portrait"))
+
     image_map: dict[str, Path] = {}  # 시트/영상에서 재사용할 대표 이미지
     demo_art = False
-    for key in selected:
-        spec = cat.CATALOG[key]
-        if not spec.is_image:
-            continue
-        for res in gemini_service.generate_asset(spec, concept, job_dir, settings,
-                                                 scale=req.image_scale,
-                                                 variant_count=req.variant_count):
-            image_map.setdefault(key, res.path)  # 첫 변형을 대표로
+    anchor = None  # PIL.Image — 캐릭터 앵커 레퍼런스
+    for spec in image_specs:
+        use_ref = anchor if (req.consistency and spec.character_ref) else None
+        results = gemini_service.generate_asset(
+            spec, concept, job_dir, settings,
+            scale=req.image_scale, variant_count=req.variant_count,
+            reference=use_ref, transparent=req.transparent,
+        )
+        for res in results:
+            image_map.setdefault(spec.key, res.path)  # 첫 변형을 대표로
             if res.demo:
                 demo_art = True
             assets.append(GeneratedAsset(
-                kind=key, category=spec.category, path=rel(res.path),
+                kind=spec.key, category=spec.category, path=rel(res.path),
                 label=res.label, demo=res.demo, is_image=True,
             ))
+        # 앵커 확보: 실제로 생성된(데모 아님) 첫 캐릭터 에셋의 첫 변형
+        if (req.consistency and anchor is None and spec.character_ref
+                and results and not results[0].demo):
+            try:
+                from PIL import Image
+                anchor = Image.open(results[0].path).convert("RGB")
+            except Exception:
+                anchor = None
     if demo_art and not settings.gemini_enabled:
         warnings.append("GEMINI_API_KEY 미설정 — 아트는 데모 플레이스홀더로 생성되었습니다.")
+    if req.transparent:
+        warnings.append("투명 배경 ON — 컷아웃 에셋은 배경을 제거해 알파 PNG 로 저장됩니다 "
+                        "(rembg 설치 시 정밀, 미설치 시 단순 제거).")
 
     # 시트/영상에 쓸 대표 이미지 3종 선별
     picks = _pick_images(image_map)
@@ -152,6 +171,7 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
             entity_type=entity, name=name, genre=req.genre, role=role,
             art_style=req.art_style, keywords=req.keywords, assets=list(req.assets),
             image_scale=req.image_scale, variant_count=req.variant_count,
+            consistency=req.consistency, transparent=req.transparent,
         )
 
     # 각 개체를 병렬 생성 (Pillow 인코딩은 GIL 을 해제하므로 스레드로 가속)

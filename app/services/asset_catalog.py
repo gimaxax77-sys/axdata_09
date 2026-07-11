@@ -54,6 +54,19 @@ ART_STYLES = [
 
 ALL_ENTITIES = frozenset(ENTITY_TYPES)
 
+# 동일 캐릭터로 보여야 하는 에셋(앵커 이미지를 레퍼런스로 사용)
+_CHAR_REF_KEYS = frozenset({
+    "portrait", "fullbody", "expressions", "poses", "turnaround",
+    "pixel_sprite", "card_frame", "splash", "namecard",
+})
+# 배경 제거(투명 알파) 대상 — 스프라이트/아이콘 컷아웃
+_CUTOUT_KEYS = frozenset({
+    "portrait", "fullbody", "expressions", "poses", "turnaround",
+    "pixel_sprite", "emblem", "emote", "companion",
+    "weapon_icons", "item_grid", "skill_icons", "rarity_frame",
+    "ui_icons", "ui_currency",
+})
+
 
 @dataclass(frozen=True)
 class AssetSpec:
@@ -74,6 +87,16 @@ class AssetSpec:
     def variable(self) -> bool:
         """개수 선택형(3/5/7/10) 변형 에셋인지."""
         return bool(self.variant_pool)
+
+    @property
+    def character_ref(self) -> bool:
+        """동일 캐릭터로 보여야 해서 앵커 레퍼런스를 쓰는 에셋인지."""
+        return self.key in _CHAR_REF_KEYS
+
+    @property
+    def cutout(self) -> bool:
+        """배경 제거(투명 알파) 대상 컷아웃 에셋인지."""
+        return self.key in _CUTOUT_KEYS
 
     def resolve_variants(self, count: int) -> tuple[str, ...]:
         """가변이면 풀에서 count 개, 아니면 고정 변형(없으면 단일)."""
