@@ -64,10 +64,10 @@
           </label>
         </div>
 
-        <label>아트 스타일 <span class="hint">(목록 선택 또는 직접 입력)</span>
-          <input name="art_style" type="text" list="art-style-list"
+        <label>아트 스타일 <span class="hint">(프리셋 선택 후 직접 수정 가능)</span>
+          <select id="style-preset" class="mb6"><!-- JS로 채움 --></select>
+          <input name="art_style" type="text"
                  value="semi-realistic digital painting" />
-          <datalist id="art-style-list"><!-- JS로 채움 --></datalist>
         </label>
 
         <label>추가 키워드 <span class="hint">(쉼표 구분)</span>

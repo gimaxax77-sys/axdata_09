@@ -28,6 +28,18 @@ _SECTION_LABELS = {
 }
 
 
+def _load_rgb(path, bg=CARD):
+    """이미지를 RGB 로 로드. 투명(RGBA) 이면 배경색 bg 위에 합성해
+    시트에서 투명 영역이 검게 보이지 않도록 한다."""
+    im = Image.open(path)
+    if im.mode in ("RGBA", "LA", "P"):
+        im = im.convert("RGBA")
+        base = Image.new("RGB", im.size, bg)
+        base.paste(im, (0, 0), im)
+        return base
+    return im.convert("RGB")
+
+
 def _hex_to_rgb(h: str) -> tuple[int, int, int]:
     h = h.lstrip("#")
     if len(h) == 3:
@@ -111,7 +123,7 @@ def compose_sheet(
     y = 210
     portrait = images.get("portrait")
     if portrait and portrait.exists():
-        p = Image.open(portrait).convert("RGB").resize((480, 480), Image.LANCZOS)
+        p = _load_rgb(portrait).resize((480, 480), Image.LANCZOS)
         img.paste(_rounded(p, 24), (col_x, y), _rounded_mask(480, 480, 24))
     y += 480 + 30
 
@@ -207,14 +219,14 @@ def compose_sheet(
     draw.rectangle([0, fy - 30, W, fy - 26], fill=(50, 46, 70))
     fullbody = images.get("fullbody")
     if fullbody and fullbody.exists():
-        fb = Image.open(fullbody).convert("RGB")
+        fb = _load_rgb(fullbody)
         fb = _fit_thumb(fb, (228, 300))
         img.paste(fb, (MARGIN, fy))
         draw.text((MARGIN, fy + 306), "전신 / 스프라이트", font=f_small, fill=SUB)
 
     icon = images.get("icon")
     if icon and icon.exists():
-        ic = Image.open(icon).convert("RGB").resize((200, 200), Image.LANCZOS)
+        ic = _load_rgb(icon).resize((200, 200), Image.LANCZOS)
         img.paste(_rounded(ic, 16), (MARGIN + 290, fy), _rounded_mask(200, 200, 16))
         draw.text((MARGIN + 290, fy + 206), "엠블럼", font=f_small, fill=SUB)
 

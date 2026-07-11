@@ -39,9 +39,16 @@ function renderGenres() {
 }
 
 function renderArtStyles() {
-  const dl = $("#art-style-list");
-  if (!dl || !CATALOG.art_styles) return;
-  dl.innerHTML = CATALOG.art_styles.map((s) => `<option value="${s}">`).join("");
+  const sel = $("#style-preset");
+  const input = $('input[name="art_style"]');
+  if (!sel || !CATALOG.art_styles) return;
+  sel.innerHTML = '<option value="">— 프리셋 선택 —</option>' +
+    CATALOG.art_styles.map((s) => `<option value="${s}">${s}</option>`).join("");
+  // 현재 입력값이 프리셋에 있으면 선택 표시
+  if (input && CATALOG.art_styles.includes(input.value)) sel.value = input.value;
+  sel.addEventListener("change", () => {
+    if (sel.value && input) input.value = sel.value;
+  });
 }
 
 function renderModels() {

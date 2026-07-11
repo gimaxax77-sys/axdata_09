@@ -121,6 +121,7 @@ input[type=number] { width: 100%; margin-top: 6px; padding: 10px 12px; backgroun
 .etab.on { background: linear-gradient(135deg, var(--accent2), #a06bff); color: #fff; border-color: transparent; }
 
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mb6 { margin-bottom: 2px; }
 
 /* Asset picker */
 .asset-picker { margin-bottom: 20px; }

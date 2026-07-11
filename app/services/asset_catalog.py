@@ -64,7 +64,7 @@ ALL_ENTITIES = frozenset(ENTITY_TYPES)
 # 동일 캐릭터로 보여야 하는 에셋(앵커 이미지를 레퍼런스로 사용)
 _CHAR_REF_KEYS = frozenset({
     "portrait", "fullbody", "expressions", "poses", "turnaround",
-    "pixel_sprite", "card_frame", "splash", "namecard",
+    "pixel_sprite", "emote", "card_frame", "splash", "namecard",
 })
 # 배경 제거(투명 알파) 대상 — 스프라이트/아이콘 컷아웃
 _CUTOUT_KEYS = frozenset({
