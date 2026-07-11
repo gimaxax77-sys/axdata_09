@@ -1,0 +1,27 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+jinja2==3.1.5
+
+# Config
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+
+# AI providers
+openai==1.59.6           # GPT - character concept / text
+google-genai==0.8.0      # Gemini - image generation
+
+# Image / sheet composition
+pillow==11.1.0
+reportlab==4.2.5         # PDF export
+
+# HTTP
+httpx==0.28.1
+
+# CapCut draft generation (optional; app degrades gracefully if missing)
+# pyJianYingDraft==0.2.4
+
+# Video fallback (optional; requires ffmpeg on PATH)
+# moviepy==2.1.2
