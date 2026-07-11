@@ -426,9 +426,10 @@ textarea { resize: vertical; }
 .hist-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .hist-name { font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-sub { font-size: 10.5px; color: var(--accent); }
-.hist-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.hist-actions a { text-decoration: none; font-size: 13px; opacity: .75; }
-.hist-actions a:hover { opacity: 1; }
+.hist-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.hist-actions a { text-decoration: none; font-size: 17px; opacity: .8; line-height: 1;
+  padding: 5px 6px; border-radius: 7px; transition: background .12s, opacity .12s; }
+.hist-actions a:hover { opacity: 1; background: var(--line); }
 
 /* ── Responsive: stack ── */
 @media (max-width: 1080px) {

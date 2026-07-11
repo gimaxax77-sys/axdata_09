@@ -180,29 +180,34 @@ async function renderHistoryList() {
   if (!items.length) { el.innerHTML = '<p class="hint">아직 생성 기록이 없습니다.</p>'; return; }
   el.innerHTML = items.map((it) => `
     <div class="hist-card" data-url="${it.result_url}" data-kind="${it.kind}" data-id="${it.id}"
-         title="클릭: 폴더 열기">
+         title="클릭: 설정 불러오기 + 결과 보기">
       <div class="hist-thumb">${it.thumb ? `<img src="/files/${it.thumb}" loading="lazy"/>` : "<span>◈</span>"}</div>
       <div class="hist-meta">
         <span class="hist-name">${it.name}</span>
         <span class="hist-sub">${entityLabel(it.entity)} · ${it.kind === "batch" ? "도감" : "단일"}</span>
       </div>
       <div class="hist-actions">
-        <a href="#" class="hist-view" title="결과 다시보기">👁</a>
+        <a href="#" class="hist-open" title="폴더 열기">📂</a>
         <a href="/api/zip/${it.id}" download title="ZIP 다운로드">📦</a>
         <a href="#" class="hist-del" title="삭제">🗑</a>
       </div>
     </div>`).join("");
   el.querySelectorAll(".hist-card").forEach((card) => {
-    card.addEventListener("click", (e) => {
+    card.addEventListener("click", async (e) => {
       if (e.target.closest(".hist-actions")) return;
-      openFolder(card.dataset.id);  // 클릭 → 폴더 열기
+      // 클릭 → 이 항목의 설정을 폼에 불러오고 결과도 보여줌 (추가 생성 편의)
+      try {
+        const data = await (await fetch(card.dataset.url + "?t=" + Date.now())).json();
+        loadHistoryConfig(data);
+        $("#empty").classList.add("hidden");
+        if (card.dataset.kind === "batch") renderBatch(data); else renderResult(data);
+      } catch (err) { alert("불러오기 실패"); }
     });
   });
-  el.querySelectorAll(".hist-view").forEach((a) => {
+  el.querySelectorAll(".hist-open").forEach((a) => {
     a.addEventListener("click", (e) => {
       e.preventDefault();
-      const c = a.closest(".hist-card");
-      viewHistory(c.dataset.url, c.dataset.kind);
+      openFolder(a.closest(".hist-card").dataset.id);
     });
   });
   el.querySelectorAll(".hist-del").forEach((a) => {
@@ -227,6 +232,26 @@ async function viewHistory(url, kind) {
     $("#empty").classList.add("hidden");
     if (kind === "batch") renderBatch(data); else renderResult(data);
   } catch (e) { alert("불러오기 실패"); }
+}
+
+// 히스토리 항목의 설정(기획·에셋)을 폼에 복원 — 추가 생성 편의.
+// keywords·변형수·크기는 저장하지 않아 복원 안 됨(현재값 유지).
+function loadHistoryConfig(data) {
+  const isBatch = !!(data.entries || data.batch_id);
+  const entry0 = isBatch ? (data.entries && data.entries[0]) : data;
+  const c = (entry0 && entry0.concept) || {};
+  const kinds = new Set(((entry0 && entry0.assets) || []).map((a) => a.kind));
+  const assetKeys = CATALOG.assets.filter((a) => kinds.has(a.key)).map((a) => a.key);
+  if (kinds.has("sheet_png") || kinds.has("sheet_pdf")) assetKeys.push("sheet");
+  applyConfig({
+    mode: isBatch ? "batch" : "single",
+    entity: c.entity_type || data.entity_type,
+    name: isBatch ? "" : c.name,
+    genre: c.genre,
+    role: c.role,
+    art_style: c.art_style,
+    assets: assetKeys.length ? assetKeys : undefined,
+  });
 }
 
 function renderGenres() {
@@ -349,7 +374,7 @@ function renderAssetPicker() {
             const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
             return `
             <label class="asset-chip" title="${a.desc}">
-              <input type="checkbox" name="asset" value="${a.key}" />
+              <input type="checkbox" name="asset" value="${a.key}" ${a.key === "fullbody" ? "checked" : ""} />
               <span>${a.label}${badge ? `<i>${badge}</i>` : ""}</span>
             </label>`; }).join("")}
         </div>
