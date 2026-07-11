@@ -50,7 +50,12 @@ Provide "name_en": an English or romanized version of the name.
 Keep "visual_core" in ENGLISH — it is reused to build image-generation
 prompts and must be a compact, concrete visual description (species,
 silhouette, colors, materials, distinctive features), no camera or lighting.
-The visual_core MUST reflect the exact role/class too.
+The visual_core MUST reflect the exact role/class AND the GENRE's aesthetic
+and attire. For example: wuxia = traditional East-Asian martial-arts robes /
+hanbok-hanfu style flowing garments (NOT western plate armor); sci-fi =
+futuristic high-tech suit; cyberpunk = neon augmented streetwear; steampunk =
+Victorian brass-and-gear attire; fairytale = storybook costume. Describe the
+outfit concretely so it clearly matches the genre.
 
 Return ONLY a JSON object with EXACTLY these keys:
 {{

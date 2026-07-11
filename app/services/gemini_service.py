@@ -36,6 +36,22 @@ log = get_logger(__name__)
 # 이미지 안에 텍스트가 의도된 에셋(그 외에는 '글자 없음' 지시로 오타/워터마크 방지)
 _TEXT_ALLOWED = frozenset({"logo", "card_frame", "namecard", "banner"})
 
+# 장르별 세계관/복장 힌트 — 이미지 프롬프트에 주입해 장르가 실제 그림에 반영되게 함
+_GENRE_HINT = {
+    "fantasy": "high fantasy setting, medieval fantasy attire",
+    "sci-fi": "futuristic sci-fi setting, high-tech suit and gear",
+    "cyberpunk": "cyberpunk neon-noir setting, augmented streetwear and cybernetics",
+    "wuxia": ("wuxia / East-Asian martial-arts setting, traditional flowing "
+              "martial-arts robes (hanfu/hanbok style), NOT western plate armor, "
+              "no knight armor"),
+    "steampunk": "steampunk setting, Victorian brass-and-gear attire and goggles",
+    "fairytale": "storybook fairytale setting, whimsical costume",
+    "horror": "dark gothic horror setting, eerie atmosphere",
+    "post-apoc": "post-apocalyptic wasteland setting, scavenged rugged gear",
+}
+# 장르 힌트를 넣을 카테고리(캐릭터/애니메이션/환경/VFX)
+_GENRE_CATEGORIES = frozenset({"character", "animation", "environment", "vfx"})
+
 
 @dataclass
 class ImageResult:
@@ -104,6 +120,10 @@ def generate_asset(
             genre=concept.genre,
             variant=variant,
         )
+        # 장르(세계관/복장)를 프롬프트에 반영 — 무협인데 서양 갑옷 같은 문제 방지
+        genre_hint = _GENRE_HINT.get(concept.genre, "")
+        if genre_hint and spec.category in _GENRE_CATEGORIES:
+            prompt += f". Genre setting: {genre_hint}"
         # 화풍이 확실히 지배하도록 앞·뒤로 강하게 명시(설정한 스타일대로 나오게)
         if art_style:
             prompt = (f"{art_style} art style. " + prompt
