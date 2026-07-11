@@ -28,7 +28,70 @@ async function init() {
   renderArtStyles();
   renderModels();
   wireModeToggle();
+  wireHistory();
   loadUsage();
+}
+
+// ── 생성 히스토리 ────────────────────────────────────────
+function wireHistory() {
+  $("#history-btn").addEventListener("click", showHistory);
+  $("#history-close").addEventListener("click", hideHistory);
+}
+function entityLabel(e) {
+  return (CATALOG.entity_types && CATALOG.entity_types[e]) || e || "";
+}
+function showHistory() {
+  $("#empty").classList.add("hidden");
+  $("#result").classList.add("hidden");
+  $("#loading").classList.add("hidden");
+  $("#history").classList.remove("hidden");
+  renderHistoryList();
+}
+function hideHistory() {
+  $("#history").classList.add("hidden");
+  if ($("#result").innerHTML.trim()) $("#result").classList.remove("hidden");
+  else $("#empty").classList.remove("hidden");
+}
+async function renderHistoryList() {
+  const el = $("#history-list");
+  el.innerHTML = '<p class="hint">불러오는 중…</p>';
+  let items = [];
+  try { items = await (await fetch("/api/history")).json(); } catch (e) {}
+  if (!items.length) { el.innerHTML = '<p class="hint">아직 생성 기록이 없습니다.</p>'; return; }
+  el.innerHTML = items.map((it) => `
+    <div class="hist-card" data-url="${it.result_url}" data-kind="${it.kind}" data-id="${it.id}">
+      <div class="hist-thumb">${it.thumb ? `<img src="/files/${it.thumb}" loading="lazy"/>` : "<span>◈</span>"}</div>
+      <div class="hist-meta">
+        <span class="hist-name">${it.name}</span>
+        <span class="hist-sub">${entityLabel(it.entity)} · ${it.kind === "batch" ? "도감" : "단일"}</span>
+      </div>
+      <div class="hist-actions">
+        <a href="/api/zip/${it.id}" download title="ZIP 다운로드" onclick="event.stopPropagation()">📦</a>
+        <a href="#" class="hist-del" title="삭제">🗑</a>
+      </div>
+    </div>`).join("");
+  el.querySelectorAll(".hist-card").forEach((card) => {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".hist-actions")) return;
+      viewHistory(card.dataset.url, card.dataset.kind);
+    });
+  });
+  el.querySelectorAll(".hist-del").forEach((a) => {
+    a.addEventListener("click", async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const id = a.closest(".hist-card").dataset.id;
+      if (!confirm("이 생성 기록을 삭제할까요? (폴더 삭제)")) return;
+      await fetch("/api/history/" + encodeURIComponent(id), { method: "DELETE" });
+      renderHistoryList();
+    });
+  });
+}
+async function viewHistory(url, kind) {
+  try {
+    const data = await (await fetch(url)).json();
+    $("#history").classList.add("hidden");
+    if (kind === "batch") renderBatch(data); else renderResult(data);
+  } catch (e) { alert("불러오기 실패"); }
 }
 
 function renderGenres() {
@@ -104,6 +167,7 @@ async function loadStatus() {
     $("#status").innerHTML = pills.map(([n, m, model]) =>
       `<span class="pill ${m}" title="${model}"><span class="dot"></span>${n}: ${m === "live" ? "연결됨" : "데모"}</span>`
     ).join("");
+    if (s.output_dir && $("#hist-path")) $("#hist-path").textContent = s.output_dir + "/";
   } catch (e) {}
 }
 

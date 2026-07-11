@@ -59,6 +59,7 @@ def status() -> dict:
         "gemini": "live" if settings.gemini_enabled else "demo",
         "openai_model": settings.openai_model,
         "gemini_model": settings.gemini_image_model,
+        "output_dir": settings.output_dir,
     }
 
 
@@ -100,6 +101,64 @@ def generate_batch(req: BatchRequest) -> BatchResult:
     except Exception as exc:  # pragma: no cover - top-level guard
         raise HTTPException(status_code=500, detail=f"일괄 생성 실패: {exc}") from exc
     return result
+
+
+@app.get("/api/history")
+def history(limit: int = 60) -> list[dict]:
+    """생성 히스토리 — output 폴더의 result.json 을 스캔해 최신순 목록 반환."""
+    import json
+
+    root = settings.output_path
+    items = []
+    if not root.is_dir():
+        return items
+    for d in root.iterdir():
+        if not d.is_dir():
+            continue
+        rj = d / "result.json"
+        if not rj.exists():
+            continue
+        try:
+            data = json.loads(rj.read_text(encoding="utf-8"))
+            mtime = rj.stat().st_mtime
+        except Exception:
+            continue
+        is_batch = "entries" in data or "batch_id" in data
+        if is_batch:
+            concept0 = (data.get("entries") or [{}])[0].get("concept", {})
+            name = f"{data.get('entity_type', '')} 도감 ({len(data.get('entries', []))}종)"
+            entity = data.get("entity_type", "")
+            thumb = (data.get("codex") or {}).get("path", "")
+        else:
+            c = data.get("concept", {})
+            name = c.get("name", d.name)
+            entity = c.get("entity_type", "")
+            thumb = next((a["path"] for a in data.get("assets", [])
+                          if a.get("is_image") and a.get("category") == "character"), "")
+            if not thumb:
+                thumb = next((a["path"] for a in data.get("assets", [])
+                              if a.get("kind") == "sheet_png"), "")
+        items.append({
+            "id": d.name, "kind": "batch" if is_batch else "single",
+            "name": name, "entity": entity, "thumb": thumb,
+            "result_url": f"/files/{d.name}/result.json",
+            "mtime": mtime,
+        })
+    items.sort(key=lambda x: x["mtime"], reverse=True)
+    return items[:limit]
+
+
+@app.delete("/api/history/{job_id}")
+def delete_history(job_id: str) -> dict:
+    """히스토리 항목(폴더) 삭제."""
+    import shutil
+
+    safe = Path(job_id).name
+    folder = (settings.output_path / safe).resolve()
+    if not str(folder).startswith(str(settings.output_path.resolve())) or not folder.is_dir():
+        raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
+    shutil.rmtree(folder, ignore_errors=True)
+    return {"deleted": safe}
 
 
 @app.get("/api/zip/{job_id}")

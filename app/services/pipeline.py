@@ -157,7 +157,13 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
                                          path=rel(mp4_out), label="쇼케이스 영상 (MP4)",
                                          demo=demo_art, is_image=False))
 
-    return GenerationResult(job_id=job_id, concept=concept, assets=assets, warnings=warnings)
+    result = GenerationResult(job_id=job_id, concept=concept, assets=assets, warnings=warnings)
+    # 히스토리용 결과 저장
+    try:
+        (job_dir / "result.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    except Exception:
+        pass
+    return result
 
 
 _FALLBACK_ROLES = {
@@ -226,8 +232,15 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
             demo=not settings.gemini_enabled, is_image=True,
         )
 
-    return BatchResult(batch_id=batch_id, entity_type=entity,
-                       entries=entries, codex=codex_asset, warnings=warnings)
+    result = BatchResult(batch_id=batch_id, entity_type=entity,
+                         entries=entries, codex=codex_asset, warnings=warnings)
+    # 히스토리용 결과 저장
+    try:
+        (settings.output_path / batch_id / "result.json").write_text(
+            result.model_dump_json(indent=2), encoding="utf-8")
+    except Exception:
+        pass
+    return result
 
 
 def _portrait_abs(entry: GenerationResult, settings: Settings) -> Path | None:

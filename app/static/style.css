@@ -40,6 +40,39 @@ body {
 .topbar-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
 .status-pills { display: flex; gap: 8px; }
 
+/* History button */
+.hist-btn { background: var(--panel-solid); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 999px; padding: 6px 13px; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+.hist-btn:hover { border-color: var(--accent2); }
+
+/* Cautions box */
+.cautions { border: 1px solid rgba(245,166,35,.3); background: rgba(245,166,35,.06);
+  border-radius: 11px; padding: 10px 14px; margin: 0 0 16px; }
+.cautions summary { cursor: pointer; font-size: 13px; color: var(--demo); font-weight: 600; }
+.cautions ul { margin: 10px 0 2px; padding-left: 18px; }
+.cautions li { font-size: 12.5px; color: var(--sub); margin-bottom: 6px; line-height: 1.5; }
+.cautions li b { color: var(--ink); }
+
+/* History panel */
+.history { display: flex; flex-direction: column; gap: 6px; }
+.history-head { display: flex; align-items: center; justify-content: space-between; }
+.history-head h2 { margin: 0; }
+.link-btn { background: none; border: none; color: var(--sub); cursor: pointer; font-size: 13px; font-family: inherit; }
+.link-btn:hover { color: var(--accent2); }
+.history-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap: 12px; margin-top: 12px; }
+.hist-card { display: flex; align-items: center; gap: 11px; background: var(--panel-solid);
+  border: 1px solid var(--line); border-radius: 12px; padding: 9px; cursor: pointer; transition: border-color .12s; }
+.hist-card:hover { border-color: var(--accent2); }
+.hist-thumb { width: 52px; height: 52px; border-radius: 9px; overflow: hidden; flex-shrink: 0;
+  background: var(--card); display: flex; align-items: center; justify-content: center; color: var(--line); font-size: 22px; }
+.hist-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.hist-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hist-name { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-sub { font-size: 11.5px; color: var(--accent); }
+.hist-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.hist-actions a { text-decoration: none; font-size: 15px; opacity: .8; }
+.hist-actions a:hover { opacity: 1; }
+
 /* Usage bar */
 .usage-bar { display: flex; align-items: center; gap: 10px; font-size: 12px;
   background: var(--panel-solid); border: 1px solid var(--line);
