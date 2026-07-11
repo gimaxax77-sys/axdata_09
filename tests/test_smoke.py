@@ -200,6 +200,39 @@ def test_budget_set_ignores_bad_values(tmp_path, monkeypatch):
     assert saved["monthly_limit"] == 0.0        # 음수는 0 하한
 
 
+# ── 이미지 편집 ───────────────────────────────────────────
+def test_editor_crop_bg_adjust(tmp_path):
+    from app.services import editor
+    p = tmp_path / "e.png"
+    Image.new("RGB", (400, 300), (120, 60, 200)).save(p)
+    # 크롭: 중앙 절반
+    size = editor.apply_edit(p, crop={"l": 0.25, "t": 0.25, "r": 0.75, "b": 0.75})
+    assert size == (200, 150)
+    # 밝기 1.5배
+    Image.new("RGB", (40, 40), (100, 100, 100)).save(p)
+    editor.apply_edit(p, brightness=1.5)
+    assert Image.open(p).getpixel((0, 0))[0] == 150
+
+
+def test_editor_bg_flatten_transparent(tmp_path):
+    from app.services import editor
+    p = tmp_path / "t.png"
+    Image.new("RGBA", (60, 60), (0, 0, 0, 0)).save(p)
+    editor.apply_edit(p, bg="#ffffff")
+    out = Image.open(p)
+    assert out.mode == "RGB"
+    assert out.getpixel((5, 5)) == (255, 255, 255)
+
+
+def test_editor_tiny_crop_ignored(tmp_path):
+    from app.services import editor
+    p = tmp_path / "s.png"
+    Image.new("RGB", (100, 100), (10, 20, 30)).save(p)
+    # 4px 미만 크롭은 무시 → 원본 크기 유지
+    size = editor.apply_edit(p, crop={"l": 0.5, "t": 0.5, "r": 0.51, "b": 0.51})
+    assert size == (100, 100)
+
+
 def test_spend_ledger_accumulates(tmp_path, monkeypatch):
     from app import runtime
     monkeypatch.setattr(runtime, "_FILE", tmp_path / "rc.json")

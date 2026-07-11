@@ -212,6 +212,60 @@
     </aside>
   </main>
 
+  <!-- ── 이미지 편집 모달 ── -->
+  <div id="edit-modal" class="edit-modal hidden">
+    <div class="edit-box">
+      <div class="edit-head">
+        <span id="edit-title">이미지 편집</span>
+        <button type="button" id="edit-close" class="icon-btn" title="닫기">✕</button>
+      </div>
+      <div class="edit-body">
+        <div class="edit-stage" id="edit-stage">
+          <div class="edit-imgwrap" id="edit-imgwrap">
+            <img id="edit-img" alt="편집 대상" />
+            <div id="crop-rect" class="crop-rect hidden"></div>
+          </div>
+          <p class="hint sm">이미지 위를 드래그해 크롭 영역 지정 · 다시 드래그하면 재설정</p>
+        </div>
+        <div class="edit-controls">
+          <div class="ec-group">
+            <label>배경</label>
+            <div class="bg-swatches" id="bg-swatches">
+              <button type="button" class="sw" data-bg="" title="원본">원본</button>
+              <button type="button" class="sw" data-bg="transparent" title="투명">투명</button>
+              <button type="button" class="sw" data-bg="#ffffff" style="background:#fff"></button>
+              <button type="button" class="sw" data-bg="#000000" style="background:#000"></button>
+              <button type="button" class="sw" data-bg="#7c5cff" style="background:#7c5cff"></button>
+              <button type="button" class="sw" data-bg="#2e8b57" style="background:#2e8b57"></button>
+              <input type="color" id="bg-custom" value="#3355aa" title="커스텀 색" />
+            </div>
+          </div>
+          <div class="ec-group">
+            <label>밝기 <span id="v-bri">100%</span></label>
+            <input type="range" id="adj-bri" min="0.4" max="1.8" step="0.05" value="1" />
+          </div>
+          <div class="ec-group">
+            <label>대비 <span id="v-con">100%</span></label>
+            <input type="range" id="adj-con" min="0.4" max="1.8" step="0.05" value="1" />
+          </div>
+          <div class="ec-group">
+            <label>채도 <span id="v-sat">100%</span></label>
+            <input type="range" id="adj-sat" min="0" max="2" step="0.05" value="1" />
+          </div>
+          <div class="ec-actions">
+            <button type="button" id="edit-reset" class="link-btn">보정 초기화</button>
+            <button type="button" id="crop-clear" class="link-btn">크롭 해제</button>
+          </div>
+          <div class="ec-apply">
+            <button type="button" id="edit-cancel" class="link-btn">취소</button>
+            <button type="button" id="edit-apply" class="mini-btn">✓ 적용</button>
+          </div>
+          <p class="hint sm">적용은 파일을 덮어씁니다. 되돌리려면 ↻로 재생성하세요.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>

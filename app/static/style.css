@@ -210,6 +210,48 @@ textarea { resize: vertical; }
   font-size: 13px; font-family: inherit; padding: 0; line-height: 1; transition: transform .3s; }
 .regen-btn:hover { color: var(--accent); transform: rotate(180deg); }
 .regen-btn:disabled { opacity: .5; cursor: default; }
+.edit-btn { background: none; border: none; cursor: pointer; color: var(--accent2b);
+  font-size: 13px; font-family: inherit; padding: 0; line-height: 1; }
+.edit-btn:hover { color: var(--accent); }
+
+/* 이미지 편집 모달 */
+.edit-modal { position: fixed; inset: 0; z-index: 100; display: flex;
+  align-items: center; justify-content: center; background: rgba(6,4,12,.72); padding: 20px; }
+.edit-box { width: min(880px, 96vw); max-height: 92vh; display: flex; flex-direction: column;
+  background: var(--pane); border: 1px solid var(--line2); border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.6); overflow: hidden; }
+.edit-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 700; }
+.edit-body { display: grid; grid-template-columns: 1fr 260px; gap: 14px; padding: 14px 16px;
+  overflow: auto; }
+.edit-stage { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.edit-imgwrap { position: relative; display: inline-block; align-self: center; max-width: 100%;
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden; touch-action: none;
+  cursor: crosshair; }
+.edit-imgwrap.checker { background-image:
+  linear-gradient(45deg, #3a3350 25%, transparent 25%),
+  linear-gradient(-45deg, #3a3350 25%, transparent 25%),
+  linear-gradient(45deg, transparent 75%, #3a3350 75%),
+  linear-gradient(-45deg, transparent 75%, #3a3350 75%);
+  background-size: 18px 18px; background-position: 0 0, 0 9px, 9px -9px, -9px 0; }
+#edit-img { display: block; max-width: 100%; max-height: 58vh; user-select: none; -webkit-user-drag: none; }
+.crop-rect { position: absolute; border: 2px dashed var(--accent); background: rgba(208,164,65,.12);
+  box-shadow: 0 0 0 9999px rgba(6,4,12,.45); pointer-events: none; }
+.edit-controls { display: flex; flex-direction: column; gap: 12px; }
+.ec-group { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--sub); }
+.ec-group label { display: flex; justify-content: space-between; }
+.ec-group label span { color: var(--accent); font-weight: 700; }
+.ec-group input[type=range] { width: 100%; accent-color: var(--accent2); }
+.bg-swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bg-swatches .sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line2);
+  cursor: pointer; font-size: 9px; color: var(--sub); background: var(--bg); padding: 0; }
+.bg-swatches .sw.on { outline: 2px solid var(--accent); }
+.bg-swatches input[type=color] { width: 28px; height: 28px; padding: 0; border: 1px solid var(--line2);
+  border-radius: 6px; background: none; cursor: pointer; }
+.ec-actions { display: flex; justify-content: space-between; padding-top: 4px;
+  border-top: 1px solid var(--line); }
+.ec-apply { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+@media (max-width: 680px) { .edit-body { grid-template-columns: 1fr; } }
 
 .result { display: flex; flex-direction: column; gap: 16px; }
 .warn { background: rgba(245,166,35,.09); border: 1px solid rgba(245,166,35,.32); border-radius: 9px; padding: 9px 12px; font-size: 12px; color: #f0c789; }

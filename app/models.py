@@ -98,6 +98,17 @@ class RegenerateRequest(BaseModel):
     image_model: str = Field("")
 
 
+class EditRequest(BaseModel):
+    """기존 잡의 이미지 파일 하나를 편집."""
+
+    file: str = Field(..., description="잡 폴더 기준 파일명 (예: portrait.png)")
+    crop: dict | None = Field(None, description="{l,t,r,b} 프랙션 0~1")
+    bg: str | None = Field(None, description="'#RRGGBB' 또는 'transparent'")
+    brightness: float = Field(1.0, ge=0.1, le=3.0)
+    contrast: float = Field(1.0, ge=0.1, le=3.0)
+    saturation: float = Field(1.0, ge=0.0, le=3.0)
+
+
 class BatchResult(BaseModel):
     batch_id: str
     entity_type: str

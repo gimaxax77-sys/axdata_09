@@ -15,6 +15,7 @@ from .logging_config import get_logger, setup_logging
 from .models import (
     BatchRequest,
     BatchResult,
+    EditRequest,
     GenerationRequest,
     GenerationResult,
     RegenerateRequest,
@@ -262,6 +263,27 @@ def regenerate(job_id: str, req: RegenerateRequest) -> dict:
     # 히스토리 캐시 무효화(result.json 변경됨)
     _HISTORY_CACHE.pop(str(settings.output_path / safe / "result.json"), None)
     return {"job_id": safe, "assets": [a.model_dump() for a in assets]}
+
+
+@app.post("/api/edit/{job_id}")
+def edit_asset(job_id: str, req: EditRequest) -> dict:
+    """기존 잡의 이미지 파일 하나를 편집(크롭/배경/보정)해 제자리 저장."""
+    from .services import editor
+
+    safe_job = Path(job_id).name
+    fname = Path(req.file).name  # 경로 탐색 방지
+    target = _safe_path(settings.output_path, safe_job, fname)
+    if not target.is_file() or target.suffix.lower() != ".png":
+        raise HTTPException(status_code=404, detail="이미지 파일을 찾을 수 없습니다.")
+    try:
+        size = editor.apply_edit(
+            target, crop=req.crop, bg=req.bg,
+            brightness=req.brightness, contrast=req.contrast, saturation=req.saturation,
+        )
+    except Exception as exc:  # pragma: no cover - top-level guard
+        raise HTTPException(status_code=500, detail=f"편집 실패: {exc}") from exc
+    rel = f"{safe_job}/{fname}"
+    return {"file": rel, "width": size[0], "height": size[1]}
 
 
 @app.get("/api/progress/{progress_id}")

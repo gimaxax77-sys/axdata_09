@@ -34,6 +34,7 @@ async function init() {
   wirePathSettings();
   wirePresets();
   wireBudget();
+  wireEditor();
   loadSettings();
   loadPresets();
   loadUsage();
@@ -536,6 +537,162 @@ function budgetGate() {
   return true;
 }
 
+// ── 이미지 편집 모달 ─────────────────────────────────────
+const EDIT = { file: null, card: null, crop: null, drag: null };
+
+function openEditor(card) {
+  const file = card.dataset.file;
+  if (!file || !CURRENT_JOB_ID) { alert("편집할 파일을 찾을 수 없습니다."); return; }
+  EDIT.file = file;
+  EDIT.card = card;
+  EDIT.crop = null;
+  $("#edit-title").textContent = (card.dataset.label || "이미지") + " · 편집";
+  const src = FILES + CURRENT_JOB_ID + "/" + file + "?t=" + Date.now();
+  const img = $("#edit-img");
+  img.src = src;
+  resetEditControls();
+  $("#crop-rect").classList.add("hidden");
+  $("#edit-imgwrap").style.background = "";
+  $("#edit-modal").classList.remove("hidden");
+}
+
+function resetEditControls() {
+  $("#adj-bri").value = 1; $("#adj-con").value = 1; $("#adj-sat").value = 1;
+  $("#bg-custom").value = "#3355aa";
+  EDIT.bg = "";
+  applyPreview();
+}
+
+function pct(v) { return Math.round(v * 100) + "%"; }
+
+function applyPreview() {
+  const b = parseFloat($("#adj-bri").value), c = parseFloat($("#adj-con").value),
+    s = parseFloat($("#adj-sat").value);
+  $("#v-bri").textContent = pct(b); $("#v-con").textContent = pct(c); $("#v-sat").textContent = pct(s);
+  $("#edit-img").style.filter = `brightness(${b}) contrast(${c}) saturate(${s})`;
+  const wrap = $("#edit-imgwrap");
+  if (EDIT.bg === "transparent" || EDIT.bg === "" || EDIT.bg == null) {
+    wrap.classList.toggle("checker", EDIT.bg === "transparent");
+    wrap.style.background = "";
+  } else {
+    wrap.classList.remove("checker");
+    wrap.style.background = EDIT.bg;
+  }
+}
+
+function wireEditor() {
+  const modal = $("#edit-modal");
+  const close = () => modal.classList.add("hidden");
+  $("#edit-close").addEventListener("click", close);
+  $("#edit-cancel").addEventListener("click", close);
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+
+  ["adj-bri", "adj-con", "adj-sat"].forEach((id) =>
+    $("#" + id).addEventListener("input", applyPreview));
+
+  $("#edit-reset").addEventListener("click", resetEditControls);
+  $("#crop-clear").addEventListener("click", () => {
+    EDIT.crop = null; $("#crop-rect").classList.add("hidden");
+  });
+
+  // 배경 스와치
+  $("#bg-swatches").addEventListener("click", (e) => {
+    const sw = e.target.closest(".sw"); if (!sw) return;
+    EDIT.bg = sw.dataset.bg; applyPreview();
+    $$("#bg-swatches .sw").forEach((x) => x.classList.remove("on"));
+    sw.classList.add("on");
+  });
+  $("#bg-custom").addEventListener("input", (e) => {
+    EDIT.bg = e.target.value; applyPreview();
+    $$("#bg-swatches .sw").forEach((x) => x.classList.remove("on"));
+  });
+
+  // 크롭 드래그
+  const wrap = $("#edit-imgwrap"), rect = $("#crop-rect");
+  wrap.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".sw")) return;
+    const img = $("#edit-img");
+    const r = img.getBoundingClientRect();
+    EDIT.drag = { r, x0: e.clientX, y0: e.clientY };
+    rect.classList.remove("hidden");
+    wrap.setPointerCapture(e.pointerId);
+    updateCropRect(e.clientX, e.clientY);
+  });
+  wrap.addEventListener("pointermove", (e) => {
+    if (EDIT.drag) updateCropRect(e.clientX, e.clientY);
+  });
+  wrap.addEventListener("pointerup", (e) => {
+    if (!EDIT.drag) return;
+    finalizeCrop(e.clientX, e.clientY);
+    EDIT.drag = null;
+  });
+
+  $("#edit-apply").addEventListener("click", applyEdit);
+}
+
+function updateCropRect(cx, cy) {
+  const { r, x0, y0 } = EDIT.drag;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const ax = clamp(x0, r.left, r.right), ay = clamp(y0, r.top, r.bottom);
+  const bx = clamp(cx, r.left, r.right), by = clamp(cy, r.top, r.bottom);
+  const left = Math.min(ax, bx), top = Math.min(ay, by);
+  const w = Math.abs(bx - ax), h = Math.abs(by - ay);
+  const rect = $("#crop-rect");
+  const wrapR = $("#edit-imgwrap").getBoundingClientRect();
+  rect.style.left = (left - wrapR.left) + "px";
+  rect.style.top = (top - wrapR.top) + "px";
+  rect.style.width = w + "px";
+  rect.style.height = h + "px";
+}
+
+function finalizeCrop(cx, cy) {
+  const { r, x0, y0 } = EDIT.drag;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const ax = clamp(x0, r.left, r.right), ay = clamp(y0, r.top, r.bottom);
+  const bx = clamp(cx, r.left, r.right), by = clamp(cy, r.top, r.bottom);
+  const l = (Math.min(ax, bx) - r.left) / r.width;
+  const t = (Math.min(ay, by) - r.top) / r.height;
+  const rr = (Math.max(ax, bx) - r.left) / r.width;
+  const bb = (Math.max(ay, by) - r.top) / r.height;
+  // 너무 작은 선택은 크롭 취소로 간주
+  if (rr - l < 0.03 || bb - t < 0.03) {
+    EDIT.crop = null; $("#crop-rect").classList.add("hidden"); return;
+  }
+  EDIT.crop = { l, t, r: rr, b: bb };
+}
+
+async function applyEdit() {
+  if (!EDIT.file || !CURRENT_JOB_ID) return;
+  const payload = {
+    file: EDIT.file,
+    crop: EDIT.crop,
+    bg: (EDIT.bg === "" ? null : EDIT.bg),
+    brightness: parseFloat($("#adj-bri").value),
+    contrast: parseFloat($("#adj-con").value),
+    saturation: parseFloat($("#adj-sat").value),
+  };
+  const btn = $("#edit-apply");
+  btn.disabled = true; btn.textContent = "적용 중…";
+  try {
+    const r = await fetch("/api/edit/" + encodeURIComponent(CURRENT_JOB_ID), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || "편집 실패");
+    const out = await r.json();
+    // 카드 이미지 갱신 (캐시 회피)
+    if (EDIT.card) {
+      const cimg = EDIT.card.querySelector("img");
+      if (cimg) cimg.src = FILES + out.file + "?t=" + Date.now();
+    }
+    $("#edit-modal").classList.add("hidden");
+  } catch (err) {
+    alert("편집 실패: " + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "✓ 적용";
+  }
+}
+
 // ── 실시간 진행률 (서버 폴링) ────────────────────────────
 let progressTimer = null;
 let CURRENT_PID = null;
@@ -667,6 +824,10 @@ $("#gen-form").addEventListener("change", computeEstimate);
 let CURRENT_JOB_ID = null;
 
 $("#result").addEventListener("click", async (e) => {
+  // 편집 버튼 우선 처리
+  const editBtn = e.target.closest(".edit-btn");
+  if (editBtn) { openEditor(editBtn.closest(".asset-card")); return; }
+
   const btn = e.target.closest(".regen-btn");
   if (!btn || !CURRENT_JOB_ID) return;
   const kind = btn.dataset.regen;
@@ -740,13 +901,15 @@ function renderResult(data) {
   imgAssets.forEach((x) => { (groups[x.category] ||= []).push(x); });
 
   const regenKeys = new Set(CATALOG.assets.map((a) => a.key));
+  const fnOf = (path) => path.split("/").pop();
   const assetGroups = Object.keys(cats).filter((cat) => groups[cat]).map((cat) => `
     <div><p class="section-title">${cats[cat]}</p>
       <div class="assets-grid">${groups[cat].map((x) => `
-        <div class="asset-card" data-kind="${x.kind}">
+        <div class="asset-card" data-kind="${x.kind}" data-file="${fnOf(x.path)}" data-label="${x.label}">
           <div class="media"><img src="${FILES}${x.path}?t=${Date.now()}" alt="${x.label}" loading="lazy"/></div>
           <div class="asset-meta"><span class="lbl">${x.label}${x.demo ? '<span class="badge-demo">DEMO</span>' : ""}</span>
             <span class="asset-actions">
+              <button type="button" class="edit-btn" data-edit="${fnOf(x.path)}" title="편집 (크롭·배경·보정)">✎</button>
               ${regenKeys.has(x.kind) ? `<button type="button" class="regen-btn" data-regen="${x.kind}" title="이 에셋만 다시 생성">↻</button>` : ""}
               <a href="${FILES}${x.path}" download>⬇</a></span>
           </div>
