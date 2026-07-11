@@ -177,3 +177,35 @@ def test_progress_empty_id_is_noop():
     progress.advance("")
     assert progress.snapshot("") is None
     assert progress.is_cancelled("") is False
+
+
+# ── 예산 / 비용 상한 ──────────────────────────────────────
+def test_budget_defaults_and_set(tmp_path, monkeypatch):
+    from app import runtime
+    monkeypatch.setattr(runtime, "_FILE", tmp_path / "rc.json")
+    d = runtime.get_budget()
+    assert set(d) == {"confirm_threshold", "per_run_limit", "monthly_limit"}
+    saved = runtime.set_budget({"confirm_threshold": 1.5, "per_run_limit": 3, "monthly_limit": 40})
+    assert saved["confirm_threshold"] == 1.5
+    assert runtime.get_budget()["monthly_limit"] == 40.0
+
+
+def test_budget_set_ignores_bad_values(tmp_path, monkeypatch):
+    from app import runtime
+    monkeypatch.setattr(runtime, "_FILE", tmp_path / "rc.json")
+    runtime.set_budget({"per_run_limit": 5})
+    # 잘못된 값/음수는 무시 또는 0 하한
+    saved = runtime.set_budget({"per_run_limit": "abc", "monthly_limit": -10})
+    assert saved["per_run_limit"] == 5.0        # 기존값 유지
+    assert saved["monthly_limit"] == 0.0        # 음수는 0 하한
+
+
+def test_spend_ledger_accumulates(tmp_path, monkeypatch):
+    from app import runtime
+    monkeypatch.setattr(runtime, "_FILE", tmp_path / "rc.json")
+    assert runtime.get_month_spend("2026-07") == 0.0
+    runtime.add_spend("2026-07", 0.5)
+    runtime.add_spend("2026-07", 0.25)
+    runtime.add_spend("2026-07", 0.0)   # 데모(0)는 무시
+    assert runtime.get_month_spend("2026-07") == 0.75
+    assert runtime.get_month_spend("2026-08") == 0.0  # 월 분리

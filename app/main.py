@@ -163,6 +163,42 @@ def delete_preset_api(name: str, request: Request) -> dict:
     return {"deleted": name, "presets": runtime.get_presets()}
 
 
+def _current_month() -> str:
+    return datetime.now().strftime("%Y-%m")
+
+
+@app.get("/api/budget")
+def get_budget_api() -> dict:
+    """예산·비용 상한 설정 + 이번 달 실지출 누적."""
+    from . import runtime
+    month = _current_month()
+    return {
+        "limits": runtime.get_budget(),
+        "month": month,
+        "month_spent_usd": round(runtime.get_month_spend(month), 4),
+        "usd_krw": settings.usd_krw,
+    }
+
+
+@app.post("/api/budget")
+def set_budget_api(payload: dict, request: Request) -> dict:
+    """예산 상한 설정 변경 (로컬 전용)."""
+    _require_local(request)
+    from . import runtime
+    limits = runtime.set_budget((payload or {}).get("limits") or payload or {})
+    month = _current_month()
+    return {"limits": limits, "month": month,
+            "month_spent_usd": round(runtime.get_month_spend(month), 4),
+            "usd_krw": settings.usd_krw}
+
+
+def _record_spend(before_usd: float) -> None:
+    """생성 전후 usage 총액 차이를 이번 달 지출로 누적 (데모=0 이면 무시)."""
+    from . import runtime
+    after = usage.snapshot(settings)["total_usd"]
+    runtime.add_spend(_current_month(), max(0.0, after - before_usd))
+
+
 @app.get("/api/usage")
 def get_usage() -> dict:
     """이 앱에서 생성한 사용량 + 예상 비용 (실제 잔액 아님)."""
@@ -179,9 +215,12 @@ def reset_usage() -> dict:
 def generate(req: GenerationRequest) -> GenerationResult:
     label = req.name or req.role or req.entity_type
     job_id = _job_id(req.entity_type, label)
+    before = usage.snapshot(settings)["total_usd"]
     try:
         result = pipeline.run_pipeline(req, settings, job_id)
+        _record_spend(before)
     except progress.Cancelled as exc:
+        _record_spend(before)
         progress.finish(req.progress_id, error="취소됨")
         raise HTTPException(status_code=409, detail="생성이 취소되었습니다.") from exc
     except Exception as exc:  # pragma: no cover - top-level guard
@@ -194,9 +233,12 @@ def generate(req: GenerationRequest) -> GenerationResult:
 def generate_batch(req: BatchRequest) -> BatchResult:
     """일괄 생성 — 여러 개체 + 도감 오버뷰."""
     batch_id = _job_id("batch-" + req.entity_type, req.genre)
+    before = usage.snapshot(settings)["total_usd"]
     try:
         result = pipeline.run_batch(req, settings, batch_id)
+        _record_spend(before)
     except progress.Cancelled as exc:
+        _record_spend(before)
         progress.finish(req.progress_id, error="취소됨")
         raise HTTPException(status_code=409, detail="일괄 생성이 취소되었습니다.") from exc
     except Exception as exc:  # pragma: no cover - top-level guard
@@ -209,8 +251,10 @@ def generate_batch(req: BatchRequest) -> BatchResult:
 def regenerate(job_id: str, req: RegenerateRequest) -> dict:
     """기존 잡의 특정 이미지 에셋 하나만 다시 생성."""
     safe = Path(job_id).name
+    before = usage.snapshot(settings)["total_usd"]
     try:
         assets = pipeline.regenerate_asset(req, settings, safe)
+        _record_spend(before)
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - top-level guard

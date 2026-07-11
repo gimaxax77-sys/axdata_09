@@ -31,6 +31,27 @@
     <span class="est-sep">·</span>
     <span class="est-item est-cost">💳 <b id="est-cost">–</b></span>
     <span id="est-note" class="est-note"></span>
+    <button type="button" id="budget-toggle" class="est-budget-btn" title="예산·비용 확인 설정">⚙ 예산</button>
+    <div id="budget-editor" class="budget-editor hidden">
+      <div class="be-title">예산 · 비용 확인 설정</div>
+      <label class="be-row">확인 팝업 임계값 ($)
+        <input id="bg-confirm" type="number" min="0" step="0.1" />
+        <span class="be-hint">예상 비용이 이 값을 넘으면 생성 전 확인</span>
+      </label>
+      <label class="be-row">1회 상한 ($, 0=무제한)
+        <input id="bg-perrun" type="number" min="0" step="0.1" />
+        <span class="be-hint">한 번 생성이 이 금액을 넘으면 차단</span>
+      </label>
+      <label class="be-row">월 예산 ($, 0=무제한)
+        <input id="bg-monthly" type="number" min="0" step="1" />
+        <span class="be-hint">이번 달 누적+예상이 넘으면 차단</span>
+      </label>
+      <div class="be-info">이번 달 사용: <b id="bg-spent">$0</b> <span id="bg-month"></span></div>
+      <div class="be-btns">
+        <button type="button" id="bg-save" class="mini-btn">저장</button>
+        <button type="button" id="bg-close" class="link-btn">닫기</button>
+      </div>
+    </div>
   </div>
 
   <main class="layout3">

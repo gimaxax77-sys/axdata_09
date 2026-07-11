@@ -33,9 +33,11 @@ async function init() {
   $("#hist-refresh").addEventListener("click", renderHistoryList);
   wirePathSettings();
   wirePresets();
+  wireBudget();
   loadSettings();
   loadPresets();
   loadUsage();
+  loadBudget();
   renderHistoryList();
 }
 
@@ -362,6 +364,8 @@ function setDefaults() {
 // PNG/GIF 용량은 픽셀수 기반 근사치. LIVE(실 API)는 사진/회화형이라 크고,
 // DEMO(플레이스홀더)는 단순 도형이라 작다.
 const BYTES_PER_PX = { live: 1.5, demo: 0.22 };  // 압축 PNG 근사(바이트/픽셀)
+let LAST_ESTIMATE = null;   // 최근 computeEstimate() 결과
+let BUDGET = null;          // /api/budget (limits + month_spent)
 
 function imgBytes(size, scale, live) {
   const px = size[0] * size[1] * scale * scale;
@@ -438,6 +442,7 @@ function computeEstimate() {
   if (gptLive) usd += (p.gpt_concept || 0.002) * mult;
   const krw = usd * (p.usd_krw || 1350);
 
+  LAST_ESTIMATE = { files, bytes, images, usd, krw, live: imgLive, hasAssets: checked.length > 0 };
   $("#est-files").textContent = files.toLocaleString();
   $("#est-size").textContent = "~" + fmtBytes(bytes);
   $("#est-images").textContent = images.toLocaleString();
@@ -456,6 +461,79 @@ function computeEstimate() {
     noteEl.textContent = "· 예상치";
     noteEl.className = "est-note";
   }
+}
+
+// ── 예산 · 비용 확인 ─────────────────────────────────────
+async function loadBudget() {
+  try { BUDGET = await (await fetch("/api/budget")).json(); }
+  catch (e) { BUDGET = null; return; }
+  const L = BUDGET.limits || {};
+  const set = (id, v) => { const el = $(id); if (el) el.value = v; };
+  set("#bg-confirm", L.confirm_threshold ?? 0.5);
+  set("#bg-perrun", L.per_run_limit ?? 0);
+  set("#bg-monthly", L.monthly_limit ?? 0);
+  const krw = BUDGET.usd_krw || 1350;
+  const spent = BUDGET.month_spent_usd || 0;
+  if ($("#bg-spent")) $("#bg-spent").textContent =
+    "$" + spent.toFixed(3) + " (₩" + Math.round(spent * krw).toLocaleString() + ")";
+  if ($("#bg-month")) $("#bg-month").textContent = BUDGET.month ? "· " + BUDGET.month : "";
+}
+
+function wireBudget() {
+  const ed = $("#budget-editor");
+  $("#budget-toggle").addEventListener("click", () => {
+    ed.classList.toggle("hidden");
+    if (!ed.classList.contains("hidden")) loadBudget();
+  });
+  $("#bg-close").addEventListener("click", () => ed.classList.add("hidden"));
+  $("#bg-save").addEventListener("click", async () => {
+    const limits = {
+      confirm_threshold: parseFloat($("#bg-confirm").value || "0") || 0,
+      per_run_limit: parseFloat($("#bg-perrun").value || "0") || 0,
+      monthly_limit: parseFloat($("#bg-monthly").value || "0") || 0,
+    };
+    try {
+      const r = await fetch("/api/budget", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limits }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || "저장 실패");
+      BUDGET = await r.json();
+      ed.classList.add("hidden");
+    } catch (err) { alert("예산 저장 실패: " + err.message); }
+  });
+}
+
+// 생성 전 예산 가드. 계속 진행하면 true, 막히면 false.
+function budgetGate() {
+  const e = LAST_ESTIMATE;
+  if (!e || !e.live || e.usd <= 0) return true;   // 데모/무료는 통과
+  const L = (BUDGET && BUDGET.limits) || {};
+  const krw = (BUDGET && BUDGET.usd_krw) || 1350;
+  const spent = (BUDGET && BUDGET.month_spent_usd) || 0;
+  const won = (u) => "₩" + Math.round(u * krw).toLocaleString();
+  const money = (u) => "$" + u.toFixed(3) + " (" + won(u) + ")";
+
+  // 1회 상한 (하드 차단)
+  if (L.per_run_limit > 0 && e.usd > L.per_run_limit) {
+    alert(`⛔ 1회 상한 초과\n\n예상 비용 ${money(e.usd)} 이 1회 상한 ${money(L.per_run_limit)} 을 넘습니다.\n` +
+      `에셋/변형 수를 줄이거나 ⚙예산에서 상한을 올리세요.`);
+    return false;
+  }
+  // 월 예산 (하드 차단)
+  if (L.monthly_limit > 0 && (spent + e.usd) > L.monthly_limit) {
+    alert(`⛔ 월 예산 초과\n\n이번 달 사용 ${money(spent)} + 이번 예상 ${money(e.usd)} = ${money(spent + e.usd)}\n` +
+      `월 예산 ${money(L.monthly_limit)} 을 넘습니다.\n⚙예산에서 예산을 조정하세요.`);
+    return false;
+  }
+  // 확인 임계값 (소프트 확인)
+  const th = L.confirm_threshold ?? 0.5;
+  if (th >= 0 && e.usd > th) {
+    return confirm(`💳 이번 생성 예상 비용\n\n${money(e.usd)} · 이미지 ${e.images}장` +
+      (spent > 0 ? `\n이번 달 누적: ${money(spent)}` : "") +
+      `\n\n계속 진행할까요?`);
+  }
+  return true;
 }
 
 // ── 실시간 진행률 (서버 폴링) ────────────────────────────
@@ -500,6 +578,10 @@ $("#gen-form").addEventListener("submit", async (e) => {
   const fd = new FormData(e.target);
   const assets = $$('#asset-picker input[name="asset"]:checked').map((c) => c.value);
   if (!assets.length) { alert("아트 요소를 하나 이상 선택하세요."); return; }
+
+  // 예산 가드: 예상 비용이 상한/임계값을 넘으면 차단하거나 확인받는다
+  computeEstimate();
+  if (!budgetGate()) return;
 
   const batch = MODE === "batch";
   const imageScale = parseFloat(fd.get("image_scale") || "1.0");
@@ -560,6 +642,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
     const data = await res.json();
     if (batch) renderBatch(data); else renderResult(data);
     loadUsage();
+    loadBudget();
     renderHistoryList();
   } catch (err) {
     $("#result").innerHTML = `<div class="warn">⚠ ${err.message}</div>`;

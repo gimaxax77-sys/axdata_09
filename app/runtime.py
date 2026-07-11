@@ -52,3 +52,51 @@ def delete_preset(name: str) -> None:
         cfg = _load()
         cfg.get("presets", {}).pop(name, None)
         _save(cfg)
+
+
+# ── 예산 / 비용 상한 ──────────────────────────────────────────────
+# confirm_threshold: 예상 비용이 이 값을 넘으면 생성 전 확인 팝업 (USD)
+# per_run_limit: 1회 생성 상한 (USD, 0=무제한) — 초과 시 차단
+# monthly_limit: 월 예산 (USD, 0=무제한) — 이번 달 누적+예상이 넘으면 차단
+DEFAULT_BUDGET = {
+    "confirm_threshold": 0.5,
+    "per_run_limit": 0.0,
+    "monthly_limit": 0.0,
+}
+
+
+def get_budget() -> dict:
+    return {**DEFAULT_BUDGET, **_load().get("budget", {})}
+
+
+def set_budget(limits: dict) -> dict:
+    with _lock:
+        cfg = _load()
+        cur = {**DEFAULT_BUDGET, **cfg.get("budget", {})}
+        for k in DEFAULT_BUDGET:
+            v = (limits or {}).get(k)
+            if v is not None:
+                try:
+                    cur[k] = max(0.0, float(v))
+                except (TypeError, ValueError):
+                    pass
+        cfg["budget"] = cur
+        _save(cfg)
+        return cur
+
+
+def get_month_spend(month: str) -> float:
+    return float(_load().get("spend_ledger", {}).get(month, 0.0))
+
+
+def add_spend(month: str, usd: float) -> float:
+    """이번 달 누적 지출에 실제 발생 비용을 더한다 (데모=0 이면 무시)."""
+    usd = max(0.0, float(usd or 0.0))
+    if usd <= 0:
+        return get_month_spend(month)
+    with _lock:
+        cfg = _load()
+        led = cfg.setdefault("spend_ledger", {})
+        led[month] = round(led.get(month, 0.0) + usd, 4)
+        _save(cfg)
+        return led[month]
