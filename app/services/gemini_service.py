@@ -33,6 +33,10 @@ from .imageops import (  # noqa: F401
 log = get_logger(__name__)
 
 
+# 이미지 안에 텍스트가 의도된 에셋(그 외에는 '글자 없음' 지시로 오타/워터마크 방지)
+_TEXT_ALLOWED = frozenset({"logo", "card_frame", "namecard", "banner"})
+
+
 @dataclass
 class ImageResult:
     path: Path
@@ -100,9 +104,15 @@ def generate_asset(
             genre=concept.genre,
             variant=variant,
         )
-        # 화풍이 확실히 지배하도록 프롬프트 맨 앞에 강하게 명시
+        # 화풍이 확실히 지배하도록 앞·뒤로 강하게 명시(설정한 스타일대로 나오게)
         if art_style:
-            prompt = f"{art_style} art style, {art_style} rendering. " + prompt
+            prompt = (f"{art_style} art style. " + prompt
+                      + f". Entirely drawn in {art_style}, consistent {art_style} look, "
+                        "no other rendering style")
+        # 원치 않는 글자/오타 방지 (텍스트가 의도된 로고·카드·배너 등은 예외)
+        if spec.key not in _TEXT_ALLOWED:
+            prompt += (", no text, no words, no letters, no numbers, "
+                       "no watermark, no signature, no logo, no caption")
         if use_ref is not None:
             if style_only:
                 prompt = (
