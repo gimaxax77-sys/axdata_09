@@ -6,13 +6,30 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
 from .models import BatchRequest, BatchResult, GenerationRequest, GenerationResult
 from .services import asset_catalog, pipeline, usage
+
+
+def _safe_path(root: Path, *parts: str) -> Path:
+    """root 하위로만 해석되는 안전한 경로. 벗어나면 404."""
+    full = (root.joinpath(*parts)).resolve()
+    root = root.resolve()
+    if full != root and root not in full.parents:
+        raise HTTPException(status_code=404, detail="경로를 찾을 수 없습니다.")
+    return full
+
+
+def _require_local(request: Request) -> None:
+    """PC 로컬(루프백)에서만 허용 — LAN(0.0.0.0) 노출 시 제어 엔드포인트 보호."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost"):
+        raise HTTPException(status_code=403,
+                            detail="이 기능은 서버가 실행 중인 PC에서만 사용할 수 있습니다.")
 
 
 def _slug(text: str) -> str:
@@ -42,9 +59,8 @@ STATIC_DIR = BASE_DIR / "static"
 @app.get("/files/{path:path}")
 def serve_output(path: str) -> FileResponse:
     """생성 결과물 서빙 (현재 output_dir 를 요청 시점에 읽어 동적 서빙)."""
-    full = (settings.output_path / path).resolve()
-    root = settings.output_path.resolve()
-    if not str(full).startswith(str(root)) or not full.is_file():
+    full = _safe_path(settings.output_path, path)
+    if not full.is_file():
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     return FileResponse(full)
 
@@ -82,8 +98,9 @@ def get_settings_api() -> dict:
 
 
 @app.post("/api/settings")
-def set_settings_api(payload: dict) -> dict:
-    """저장 경로(output_dir) 변경 → 영속화 + 즉시 반영."""
+def set_settings_api(payload: dict, request: Request) -> dict:
+    """저장 경로(output_dir) 변경 → 영속화 + 즉시 반영. (로컬 전용)"""
+    _require_local(request)
     from . import runtime
 
     new_dir = (payload or {}).get("output_dir", "").strip()
@@ -106,7 +123,8 @@ def list_presets() -> dict:
 
 
 @app.post("/api/presets")
-def save_preset_api(payload: dict) -> dict:
+def save_preset_api(payload: dict, request: Request) -> dict:
+    _require_local(request)
     from . import runtime
     name = (payload or {}).get("name", "").strip()
     config = (payload or {}).get("config")
@@ -117,7 +135,8 @@ def save_preset_api(payload: dict) -> dict:
 
 
 @app.delete("/api/presets/{name}")
-def delete_preset_api(name: str) -> dict:
+def delete_preset_api(name: str, request: Request) -> dict:
+    _require_local(request)
     from . import runtime
     runtime.delete_preset(name)
     return {"deleted": name, "presets": runtime.get_presets()}
@@ -203,8 +222,9 @@ def history(limit: int = 60) -> list[dict]:
 
 
 @app.post("/api/open/{job_id}")
-def open_folder(job_id: str) -> dict:
+def open_folder(job_id: str, request: Request) -> dict:
     """로컬 파일 탐색기에서 해당 결과 폴더 열기 (로컬 실행 전용)."""
+    _require_local(request)
     import subprocess
     import sys
 
