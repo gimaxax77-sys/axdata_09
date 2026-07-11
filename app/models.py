@@ -29,6 +29,12 @@ class GenerationRequest(BaseModel):
     consistency: bool = True
     # 투명 배경: 컷아웃 에셋의 배경 제거 → 알파 PNG
     transparent: bool = False
+    # 스프라이트 시트: 다변형 에셋을 아틀라스 PNG + 메타 JSON 으로 패킹
+    sprite_sheet: bool = False
+    # 스타일 락: 앵커를 전체 에셋에 스타일/팔레트 기준으로 주입
+    style_lock: bool = False
+    # 이미지 모델 오버라이드 (빈 값이면 서버 기본). "gpt-image-1" 이면 OpenAI 백엔드
+    image_model: str = ""
 
 
 class Stat(BaseModel):
@@ -94,6 +100,9 @@ class BatchRequest(BaseModel):
     variant_count: int = Field(5, ge=1, le=10)
     consistency: bool = True
     transparent: bool = False
+    sprite_sheet: bool = False
+    style_lock: bool = False
+    image_model: str = ""
 
 
 class BatchResult(BaseModel):

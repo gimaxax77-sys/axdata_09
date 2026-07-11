@@ -19,6 +19,8 @@ _state = {
     "openai_output_tokens": 0,
     "openai_calls": 0,
     "gemini_images": 0,
+    "gemini_input_tokens": 0,
+    "gemini_output_tokens": 0,
 }
 
 
@@ -29,9 +31,11 @@ def record_openai(input_tokens: int, output_tokens: int) -> None:
         _state["openai_calls"] += 1
 
 
-def record_gemini_image(n: int = 1) -> None:
+def record_gemini_image(n: int = 1, input_tokens: int = 0, output_tokens: int = 0) -> None:
     with _lock:
         _state["gemini_images"] += int(n)
+        _state["gemini_input_tokens"] += int(input_tokens or 0)
+        _state["gemini_output_tokens"] += int(output_tokens or 0)
 
 
 def reset() -> None:
@@ -48,7 +52,10 @@ def snapshot(settings: Settings) -> dict:
         s["openai_input_tokens"] / 1_000_000 * settings.openai_price_in
         + s["openai_output_tokens"] / 1_000_000 * settings.openai_price_out
     )
+    # 이미지 비용: 장수 기반 기본 + (토큰 정보가 있으면) 출력 토큰 기반 정밀 추정 병기
     img_cost = s["gemini_images"] * settings.gemini_price_image
+    g_out_tok = s["gemini_output_tokens"]
+    g_in_tok = s["gemini_input_tokens"]
     total = gpt_cost + img_cost
 
     return {
@@ -61,6 +68,8 @@ def snapshot(settings: Settings) -> dict:
         },
         "gemini": {
             "images": s["gemini_images"],
+            "input_tokens": g_in_tok,
+            "output_tokens": g_out_tok,
             "cost_usd": round(img_cost, 4),
         },
         "total_usd": round(total, 4),

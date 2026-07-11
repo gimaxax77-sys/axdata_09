@@ -26,6 +26,7 @@ async function init() {
   renderAssetPicker();
   renderGenres();
   renderArtStyles();
+  renderModels();
   wireModeToggle();
   loadUsage();
 }
@@ -41,6 +42,13 @@ function renderArtStyles() {
   const dl = $("#art-style-list");
   if (!dl || !CATALOG.art_styles) return;
   dl.innerHTML = CATALOG.art_styles.map((s) => `<option value="${s}">`).join("");
+}
+
+function renderModels() {
+  const sel = $("#model-select");
+  if (!sel || !CATALOG.image_models) return;
+  sel.innerHTML = CATALOG.image_models
+    .map((m) => `<option value="${m.value}">${m.label}</option>`).join("");
 }
 
 // ── 사용량·예상 비용 ─────────────────────────────────────
@@ -180,6 +188,11 @@ $("#gen-form").addEventListener("submit", async (e) => {
   const variantCount = parseInt(fd.get("variant_count") || "5", 10);
   const consistency = fd.get("consistency") !== null;
   const transparent = fd.get("transparent") !== null;
+  const spriteSheet = fd.get("sprite_sheet") !== null;
+  const styleLock = fd.get("style_lock") !== null;
+  const imageModel = fd.get("image_model") || "";
+  const adv = { consistency, transparent, sprite_sheet: spriteSheet,
+                style_lock: styleLock, image_model: imageModel };
   let url, payload;
   if (batch) {
     const roles = (fd.get("roles") || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -192,7 +205,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       roles, names: [], assets,
       make_codex: fd.get("make_codex") !== null,
       image_scale: imageScale, variant_count: variantCount,
-      consistency, transparent,
+      ...adv,
     };
   } else {
     url = "/api/generate";
@@ -202,7 +215,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       art_style: fd.get("art_style") || "semi-realistic digital painting",
       keywords: fd.get("keywords") || "", assets,
       image_scale: imageScale, variant_count: variantCount,
-      consistency, transparent,
+      ...adv,
     };
   }
 
@@ -301,6 +314,7 @@ function renderResult(data) {
 
   $("#result").innerHTML = `
     ${warnHtml}
+    <div class="dl-row"><a class="zip-btn" href="/api/zip/${data.job_id}" download>📦 전체 ZIP 다운로드</a></div>
     <div class="char-head">
       ${portrait ? `<img src="${FILES}${portrait.path}" alt="${c.name}"/>` : ""}
       <div>
@@ -391,6 +405,7 @@ function renderBatch(data) {
 
   $("#result").innerHTML = `
     ${warnHtml}
+    <div class="dl-row"><a class="zip-btn" href="/api/zip/${data.batch_id}" download>📦 도감 전체 ZIP 다운로드</a></div>
     ${codexBlock}
     <div><p class="section-title">개체 ${data.entries.length}종</p>
       <div class="entries">${entries}</div>

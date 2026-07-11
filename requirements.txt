@@ -31,5 +31,6 @@ httpx>=0.28,<1
 # CapCut draft generation (optional; app degrades gracefully if missing)
 # pyJianYingDraft>=0.2
 
-# Video fallback (optional; requires ffmpeg on PATH)
-# moviepy>=2.1
+# 쇼케이스 MP4 출력 (imageio-ffmpeg 가 ffmpeg 바이너리를 번들). 미설치 시 GIF 만.
+imageio>=2.31
+imageio-ffmpeg>=0.4

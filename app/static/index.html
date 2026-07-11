@@ -92,12 +92,20 @@
           </label>
         </div>
 
+        <label>이미지 모델
+          <select name="image_model" id="model-select"><!-- JS로 채움 --></select>
+        </label>
+
         <fieldset class="outputs adv">
           <legend>고급 (실 API 권장)</legend>
           <label class="chk"><input type="checkbox" name="consistency" checked />
-            캐릭터 일관성 <span class="hint">초상화를 기준으로 동일 인물 유지</span></label>
+            캐릭터 일관성 <span class="hint">초상화 기준 동일 인물 유지</span></label>
+          <label class="chk"><input type="checkbox" name="style_lock" />
+            스타일 락 <span class="hint">전체 에셋 룩·팔레트 통일</span></label>
           <label class="chk"><input type="checkbox" name="transparent" />
             투명 배경(PNG) <span class="hint">스프라이트·아이콘 배경 제거</span></label>
+          <label class="chk"><input type="checkbox" name="sprite_sheet" />
+            스프라이트 시트 <span class="hint">변형을 아틀라스+메타로 패킹</span></label>
         </fieldset>
 
         <h2 class="mt">2. 생성할 아트 요소

@@ -40,18 +40,22 @@ def generate_asset(
     scale: float = 1.0,
     variant_count: int = 5,
     reference: "Image.Image | None" = None,
+    style_only: bool = False,
     transparent: bool = False,
+    model: str = "",
 ) -> list[ImageResult]:
     """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장.
 
-    reference: 동일 캐릭터 유지를 위한 앵커 이미지(image-to-image).
+    reference: 앵커 이미지(image-to-image). style_only=False 면 동일 캐릭터
+        유지(정체성), True 면 아트 스타일/팔레트만 참조(스타일 락).
     transparent: 컷아웃 에셋이면 배경 제거해 알파 PNG 로 저장.
+    model: 이미지 모델 오버라이드(빈 값이면 서버 기본).
     """
     variants = spec.resolve_variants(variant_count)
     multi = len(variants) > 1
     w, h = spec.size
     size = (max(64, int(w * scale)), max(64, int(h * scale)))
-    use_ref = reference if spec.character_ref else None
+    use_ref = reference
     do_cutout = transparent and spec.cutout
     results: list[ImageResult] = []
     for i, variant in enumerate(variants):
@@ -64,10 +68,16 @@ def generate_asset(
             variant=variant,
         )
         if use_ref is not None:
-            prompt = (
-                "Using the reference image as the EXACT SAME character — keep the "
-                "identical face, hairstyle, outfit, and colors. " + prompt
-            )
+            if style_only:
+                prompt = (
+                    "Match the ART STYLE, rendering technique, and COLOR PALETTE of "
+                    "the reference image (do NOT copy its subject). " + prompt
+                )
+            else:
+                prompt = (
+                    "Using the reference image as the EXACT SAME character — keep the "
+                    "identical face, hairstyle, outfit, and colors. " + prompt
+                )
         if do_cutout:
             prompt += ", isolated subject on a flat solid plain background"
         suffix = f"_{i+1}" if multi else ""
@@ -78,7 +88,7 @@ def generate_asset(
             placeholder=spec.placeholder,
             label=f"{concept.name}" + (f" · {variant}" if variant else f" · {spec.label}"),
             palette=concept.color_palette,
-            reference=use_ref,
+            reference=use_ref, model=model,
         )
         if do_cutout and out.exists():
             _make_transparent(out)
@@ -87,11 +97,26 @@ def generate_asset(
 
 
 def _generate_image(prompt, out_path, size, settings, *, placeholder, label, palette,
-                    reference=None) -> bool:
+                    reference=None, model="") -> bool:
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    model = model or settings.gemini_image_model
+
+    # OpenAI 이미지 백엔드(gpt-image-1: 네이티브 투명 지원)
+    if model.startswith("gpt-image"):
+        if settings.gpt_enabled:
+            try:
+                if _generate_with_openai_image(prompt, out_path, size, settings, model):
+                    return True
+            except Exception as exc:  # pragma: no cover - network guard
+                print(f"[gemini_service] OpenAI 이미지 호출 실패, 데모 폴백: {exc}")
+        _generate_placeholder(out_path, size, label, palette, placeholder)
+        return False
+
+    # 기본: Gemini
     if settings.gemini_enabled:
         try:
-            if _generate_with_gemini(prompt, out_path, size, settings, reference=reference):
+            if _generate_with_gemini(prompt, out_path, size, settings,
+                                     reference=reference, model=model):
                 return True
         except Exception as exc:  # pragma: no cover - network guard
             print(f"[gemini_service] Gemini 호출 실패, 데모 폴백: {exc}")
@@ -99,7 +124,37 @@ def _generate_image(prompt, out_path, size, settings, *, placeholder, label, pal
     return False
 
 
-def _generate_with_gemini(prompt, out_path, size, settings, reference=None) -> bool:
+def _generate_with_openai_image(prompt, out_path, size, settings, model) -> bool:
+    """OpenAI gpt-image-1 이미지 생성 (투명 배경 네이티브 지원)."""
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    # gpt-image-1 지원 크기로 매핑
+    w, h = size
+    ratio = w / h
+    if ratio > 1.2:
+        osize = "1536x1024"
+    elif ratio < 0.83:
+        osize = "1024x1536"
+    else:
+        osize = "1024x1024"
+    resp = client.images.generate(
+        model=model, prompt=prompt, size=osize,
+        background="transparent", n=1,
+    )
+    import base64
+    b64 = resp.data[0].b64_json
+    img = Image.open(io.BytesIO(base64.b64decode(b64)))
+    _fit(img.convert("RGBA"), size).save(out_path)
+    try:
+        from . import usage
+        usage.record_gemini_image(1)  # 이미지 카운트 공통 집계
+    except Exception:
+        pass
+    return True
+
+
+def _generate_with_gemini(prompt, out_path, size, settings, reference=None, model="") -> bool:
     # 일부 환경은 cryptography rust 바인딩 문제로 import 시 pyo3 PanicException
     # (BaseException 계열)을 던진다. 일반 예외로 변환해 데모 폴백이 되도록 한다.
     try:
@@ -108,6 +163,7 @@ def _generate_with_gemini(prompt, out_path, size, settings, reference=None) -> b
     except BaseException as exc:  # noqa: BLE001
         raise RuntimeError(f"google-genai import 실패: {exc}") from None
 
+    model = model or settings.gemini_image_model
     client = genai.Client(api_key=settings.gemini_api_key)
 
     # 레퍼런스 이미지가 있으면 contents 에 함께 전달(image-to-image, 캐릭터 일관성)
@@ -124,9 +180,8 @@ def _generate_with_gemini(prompt, out_path, size, settings, reference=None) -> b
         if with_config:
             cfg = types.GenerateContentConfig(response_modalities=["IMAGE"])
             return client.models.generate_content(
-                model=settings.gemini_image_model, contents=contents, config=cfg)
-        return client.models.generate_content(
-            model=settings.gemini_image_model, contents=contents)
+                model=model, contents=contents, config=cfg)
+        return client.models.generate_content(model=model, contents=contents)
 
     try:
         resp = _call(with_config=True)
@@ -142,7 +197,13 @@ def _generate_with_gemini(prompt, out_path, size, settings, reference=None) -> b
                 _fit(img, size).save(out_path)
                 try:
                     from . import usage
-                    usage.record_gemini_image(1)
+                    # 정밀 집계: usage_metadata 의 입력/출력 토큰까지 기록
+                    um = getattr(resp, "usage_metadata", None)
+                    usage.record_gemini_image(
+                        1,
+                        input_tokens=getattr(um, "prompt_token_count", 0) or 0,
+                        output_tokens=(getattr(um, "candidates_token_count", 0) or 0),
+                    )
                 except Exception:
                     pass
                 return True

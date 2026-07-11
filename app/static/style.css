@@ -254,3 +254,5 @@ input:focus, select:focus { outline: none; border-color: var(--accent2); }
   padding: 8px 14px; font-size: 12.5px; color: var(--ink); text-decoration: none;
 }
 .dl-row a:hover { border-color: var(--accent2); }
+.zip-btn { background: linear-gradient(135deg, var(--accent2), #a06bff) !important;
+  color: #fff !important; border: none !important; font-weight: 700; }

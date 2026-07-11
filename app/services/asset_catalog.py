@@ -37,6 +37,13 @@ GENRES = {
     "post-apoc": "포스트아포칼립스",
 }
 
+# 이미지 모델 선택지 (value, 표시명). 빈 값 = 서버 기본(.env)
+IMAGE_MODELS = [
+    {"value": "", "label": "기본 (서버 설정)"},
+    {"value": "gemini-2.5-flash-image", "label": "Gemini 2.5 Flash Image (Nano Banana)"},
+    {"value": "gpt-image-1", "label": "OpenAI gpt-image-1 (네이티브 투명)"},
+]
+
 # 아트 스타일 프리셋 (자유 입력도 가능)
 ART_STYLES = [
     "semi-realistic digital painting",
@@ -349,6 +356,7 @@ def catalog_payload() -> dict:
         "categories": CATEGORIES,
         "genres": GENRES,
         "art_styles": ART_STYLES,
+        "image_models": IMAGE_MODELS,
         "assets": [
             {
                 "key": s.key,

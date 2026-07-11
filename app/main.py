@@ -102,6 +102,35 @@ def generate_batch(req: BatchRequest) -> BatchResult:
     return result
 
 
+@app.get("/api/zip/{job_id}")
+def download_zip(job_id: str):
+    """잡/배치 폴더 전체를 ZIP 으로 묶어 다운로드."""
+    import io
+    import zipfile
+
+    from fastapi.responses import StreamingResponse
+
+    safe = Path(job_id).name  # 경로 탐색 방지
+    folder = (settings.output_path / safe).resolve()
+    if not str(folder).startswith(str(settings.output_path.resolve())) or not folder.is_dir():
+        raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(folder.rglob("*")):
+            if p.is_file():
+                zf.write(p, p.relative_to(folder))
+    buf.seek(0)
+    # 한글 파일명 대응: ASCII 폴백 + RFC5987 UTF-8 파일명
+    from urllib.parse import quote
+    ascii_name = (safe.encode("ascii", "ignore").decode() or "download").strip("_-") or "download"
+    disp = f"attachment; filename=\"{ascii_name}.zip\"; filename*=UTF-8''{quote(safe)}.zip"
+    return StreamingResponse(
+        buf, media_type="application/zip",
+        headers={"Content-Disposition": disp},
+    )
+
+
 @app.get("/api/download/{job_id}/{filename}")
 def download(job_id: str, filename: str) -> FileResponse:
     """산출물 다운로드 (경로 탐색 방지)."""

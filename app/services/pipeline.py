@@ -25,6 +25,7 @@ from . import (
     gemini_service,
     gpt_service,
     sheet_composer,
+    spritesheet,
 )
 
 
@@ -60,13 +61,22 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
 
     image_map: dict[str, Path] = {}  # 시트/영상에서 재사용할 대표 이미지
     demo_art = False
-    anchor = None  # PIL.Image — 캐릭터 앵커 레퍼런스
+    anchor = None  # PIL.Image — 캐릭터/스타일 앵커 레퍼런스
     for spec in image_specs:
-        use_ref = anchor if (req.consistency and spec.character_ref) else None
+        # 레퍼런스 결정: 캐릭터 에셋=정체성, 그 외+스타일락=스타일-only
+        use_ref = None
+        style_only = False
+        if anchor is not None:
+            if req.consistency and spec.character_ref:
+                use_ref = anchor
+            elif req.style_lock and not spec.character_ref:
+                use_ref, style_only = anchor, True
+
         results = gemini_service.generate_asset(
             spec, concept, job_dir, settings,
             scale=req.image_scale, variant_count=req.variant_count,
-            reference=use_ref, transparent=req.transparent,
+            reference=use_ref, style_only=style_only,
+            transparent=req.transparent, model=req.image_model,
         )
         for res in results:
             image_map.setdefault(spec.key, res.path)  # 첫 변형을 대표로
@@ -76,8 +86,24 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
                 kind=spec.key, category=spec.category, path=rel(res.path),
                 label=res.label, demo=res.demo, is_image=True,
             ))
+
+        # 스프라이트 시트: 다변형 에셋을 아틀라스로 패킹
+        if req.sprite_sheet and len(results) > 1:
+            sheet_png = job_dir / f"{spec.key}_sheet.png"
+            atlas_json = job_dir / f"{spec.key}_atlas.json"
+            packed = spritesheet.pack(
+                [(r.variant or spec.label, r.path) for r in results],
+                sheet_png, atlas_json,
+            )
+            if packed:
+                assets.append(GeneratedAsset(
+                    kind=f"{spec.key}_sheet", category="composite",
+                    path=rel(sheet_png), label=f"{spec.label} 스프라이트 시트",
+                    demo=demo_art, is_image=True,
+                ))
+
         # 앵커 확보: 실제로 생성된(데모 아님) 첫 캐릭터 에셋의 첫 변형
-        if (req.consistency and anchor is None and spec.character_ref
+        if (anchor is None and spec.character_ref
                 and results and not results[0].demo):
             try:
                 from PIL import Image
@@ -172,6 +198,8 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
             art_style=req.art_style, keywords=req.keywords, assets=list(req.assets),
             image_scale=req.image_scale, variant_count=req.variant_count,
             consistency=req.consistency, transparent=req.transparent,
+            sprite_sheet=req.sprite_sheet, style_lock=req.style_lock,
+            image_model=req.image_model,
         )
 
     # 각 개체를 병렬 생성 (Pillow 인코딩은 GIL 을 해제하므로 스레드로 가속)
