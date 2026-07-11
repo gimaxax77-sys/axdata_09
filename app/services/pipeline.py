@@ -102,15 +102,37 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
     )
 
     # 2) 이미지 에셋 생성 (선택된 것만)
-    #    캐릭터 일관성: 첫 캐릭터 에셋(초상화 우선)을 앵커로 삼아 나머지
-    #    캐릭터 에셋에 레퍼런스로 전달한다.
+    #    캐릭터 일관성: 전신(fullbody)을 기준 레퍼런스(앵커)로 삼아 나머지
+    #    캐릭터 에셋에 전달한다(전신이 없으면 초상화 → 첫 캐릭터 에셋 순).
     image_specs = [cat.CATALOG[k] for k in selected if cat.CATALOG[k].is_image]
     if req.consistency:
-        image_specs.sort(key=lambda s: (not s.character_ref, s.key != "portrait"))
+        image_specs.sort(key=lambda s: (
+            not s.character_ref, s.key != "fullbody", s.key != "portrait"))
 
     image_map: dict[str, Path] = {}  # 시트/영상에서 재사용할 대표 이미지
     demo_art = False
     anchor = None  # PIL.Image — 캐릭터/스타일 앵커 레퍼런스
+
+    # 일관성 ON + 전신이 선택 목록에 없을 때: 기준 전신 레퍼런스를 먼저 만들고
+    # 그걸 앵커로 쓴다(레퍼런스 없이 다른 캐릭터 에셋을 먼저 생성하지 않음).
+    if (req.consistency and settings.gemini_enabled
+            and any(s.character_ref for s in image_specs)
+            and not any(s.key == "fullbody" for s in image_specs)):
+        progress.check(pid)
+        progress.step(pid, 1, "기준 레퍼런스(전신) 생성 중…")
+        ref_res = gemini_service.generate_asset(
+            cat.CATALOG["fullbody"], concept, job_dir, settings,
+            scale=req.image_scale, variant_count=1, reference=None,
+            transparent=False, model=req.image_model)
+        if ref_res and not ref_res[0].demo:
+            try:
+                from PIL import Image
+                anchor = Image.open(ref_res[0].path).convert("RGB")
+                ref_res[0].path.unlink(missing_ok=True)  # 숨은 레퍼런스 파일 정리
+                warnings.append("일관성을 위해 기준 전신 레퍼런스를 1장 추가 생성했습니다"
+                                " (비용 포함).")
+            except Exception:
+                anchor = None
     for idx, spec in enumerate(image_specs):
         progress.check(pid)
         progress.step(pid, 1 + idx, f"{spec.label} 생성 중…")
