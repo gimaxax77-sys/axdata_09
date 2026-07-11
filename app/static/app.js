@@ -347,7 +347,7 @@ function renderAssetPicker() {
             const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
             return `
             <label class="asset-chip" title="${a.desc}">
-              <input type="checkbox" name="asset" value="${a.key}" ${a.default ? "checked" : ""}/>
+              <input type="checkbox" name="asset" value="${a.key}" />
               <span>${a.label}${badge ? `<i>${badge}</i>` : ""}</span>
             </label>`; }).join("")}
         </div>
@@ -391,6 +391,7 @@ function assetFileInfo(a, variantCount, opts) {
   if (!a.is_image) { // 통합 산출물 (API 이미지 아님, 로컬 합성)
     if (a.key === "sheet") return { images: 0, files: 2, bytes: 2.2e6 };   // PNG+PDF
     if (a.key === "video") return { images: 0, files: 3, bytes: 4.5e6 };   // GIF+MP4+draft
+    if (a.key === "bgm") return { images: 0, files: 2, bytes: 1.7e6 };     // WAV+가이드
     return { images: 0, files: 1, bytes: 3e5 };
   }
   const n = a.variable ? Math.min(variantCount, a.pool_max)
@@ -1149,7 +1150,7 @@ function renderResult(data) {
   imgAssets.forEach((x) => { (groups[x.category] ||= []).push(x); });
 
   const regenKeys = new Set(CATALOG.assets.map((a) => a.key));
-  const fnOf = (path) => path.split("/").pop();
+  const fnOf = (path) => path.split(/[\\/]/).pop();  // / 와 \ 모두 대응
   // 같은 kind 의 이미지가 여러 장이면(variant) 비교·채택 버튼 노출
   const kindCounts = {};
   imgAssets.forEach((x) => { kindCounts[x.kind] = (kindCounts[x.kind] || 0) + 1; });
@@ -1191,6 +1192,18 @@ function renderResult(data) {
         ${draft ? `<a href="${FILES}${draft.path}/capcut_storyboard.json" download>CapCut 스토리보드 ⬇</a>` : ""}
       </div></div>` : "";
 
+  // BGM (오디오 루프 + CapCut 가이드)
+  const bgm = byKind("bgm"), bgmGuide = byKind("bgm_guide");
+  const bgmBlock = bgm ? `
+    <div class="showcase"><p class="section-title">배경음악 (BGM)</p>
+      <audio controls src="${FILES}${bgm.path}" style="width:100%;margin-top:8px"></audio>
+      <div class="dl-row">
+        <a href="${FILES}${bgm.path}" download>루프 WAV ⬇</a>
+        ${bgmGuide ? `<a href="${FILES}${bgmGuide.path}" download>CapCut BGM 가이드 ⬇</a>` : ""}
+      </div>
+      <p class="hint sm">데모 루프입니다. 실제 영상엔 가이드의 키워드로 CapCut 음악을 고르세요.</p>
+    </div>` : "";
+
   $("#result").innerHTML = `
     ${warnHtml}
     <div class="dl-row"><a class="zip-btn" href="/api/zip/${data.job_id}" download>📦 전체 ZIP 다운로드</a></div>
@@ -1222,7 +1235,8 @@ function renderResult(data) {
     </div>
 
     ${sheetBlock}
-    ${videoBlock}`;
+    ${videoBlock}
+    ${bgmBlock}`;
   $("#result").classList.remove("hidden");
 }
 

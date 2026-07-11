@@ -5,10 +5,11 @@
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import random
+import re
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from pathlib import Path
 
 from ..config import Settings
 from ..logging_config import get_logger
@@ -36,16 +37,40 @@ from . import (
 log = get_logger(__name__)
 
 
-def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> GenerationResult:
-    job_dir = settings.output_path / job_id
-    job_dir.mkdir(parents=True, exist_ok=True)
+def _slug_folder(text: str) -> str:
+    """폴더 세그먼트용 슬러그 (한글 허용, 특수문자 제거)."""
+    text = (text or "").strip()
+    text = re.sub(r"[^\w가-힣\- ]", "", text).replace(" ", "-")
+    return text[:20]
 
+
+def _compose_folder(req: GenerationRequest, concept: EntityConcept,
+                    seed_id: str, settings: Settings) -> str:
+    """자동 저장 폴더명: 장르_직업_캐릭명_날짜. 캐릭명은 자동작명(concept)까지 반영.
+
+    seed_id 에서 타임스탬프를 재사용하고, 같은 이름이 있으면 _2, _3 로 유일화한다.
+    """
+    m = re.search(r"(\d{8}-\d{6})", seed_id or "")
+    ts = m.group(1) if m else datetime.now().strftime("%Y%m%d-%H%M%S")
+    genre = _slug_folder(cat.GENRES.get(req.genre, req.genre))
+    role = _slug_folder(req.role or concept.role)
+    name = _slug_folder(concept.name or req.name)
+    parts = [p for p in (genre, role, name) if p]
+    base = "_".join(parts + [ts]) if parts else ts
+    folder, n = base, 2
+    while (settings.output_path / folder).exists():
+        folder = f"{base}_{n}"
+        n += 1
+    return folder
+
+
+def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> GenerationResult:
     entity = req.entity_type if req.entity_type in cat.ENTITY_TYPES else "character"
     warnings: list[str] = []
     assets: list[GeneratedAsset] = []
 
     def rel(p: Path) -> str:
-        return str(p.relative_to(settings.output_path))
+        return p.relative_to(settings.output_path).as_posix()
 
     # 선택 에셋 정규화 (엔티티에 유효한 것만, 기본값 폴백)
     valid = {s.key for s in cat.specs_for_entity(entity)}
@@ -58,10 +83,17 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
         + (1 if "video" in selected else 0)
     progress.start(pid, total_steps, "기획 생성 중…")
 
-    # 1) GPT — 기획서
+    # 1) GPT — 기획서 (폴더명에 캐릭명 반영하려고 폴더 확정 전에 먼저)
     progress.check(pid)
     concept = gpt_service.generate_concept(req, settings)
     progress.advance(pid, "기획 완료")
+
+    # 폴더명: 장르_직업_캐릭명_날짜 (단일/CSV). 배치 하위(e{i} 중첩)는 그대로 둔다.
+    if "/" not in job_id:
+        job_id = _compose_folder(req, concept, job_id, settings)
+    job_dir = settings.output_path / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
     if not settings.gpt_enabled:
         warnings.append("OPENAI_API_KEY 미설정 — 기획은 데모 생성기로 만들어졌습니다.")
     (job_dir / "concept.json").write_text(
@@ -203,6 +235,19 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
                                          path=rel(mp4_out), label="쇼케이스 영상 (MP4)",
                                          demo=demo_art, is_image=False))
 
+    # 5) 배경음악 (BGM 루프 + CapCut 가이드)
+    if "bgm" in selected:
+        from . import bgm_service
+        wav = job_dir / "bgm_loop.wav"
+        brief = job_dir / "bgm_guide.txt"
+        if bgm_service.generate_bgm(concept, wav, brief, req.genre):
+            assets.append(GeneratedAsset(kind="bgm", category="composite", path=rel(wav),
+                                         label="배경음악 루프 (WAV)", demo=True, is_image=False))
+            assets.append(GeneratedAsset(kind="bgm_guide", category="composite", path=rel(brief),
+                                         label="CapCut BGM 가이드", demo=True, is_image=False))
+            warnings.append("BGM 은 분위기 확인용 데모 루프입니다 — 실제 영상엔 "
+                            "bgm_guide.txt 의 키워드로 CapCut 음악을 고르세요.")
+
     result = GenerationResult(job_id=job_id, concept=concept, assets=assets, warnings=warnings)
     # 히스토리용 결과 저장
     try:
@@ -237,7 +282,7 @@ def regenerate_asset(req: RegenerateRequest, settings: Settings,
     concept = EntityConcept(**json.loads(concept_path.read_text(encoding="utf-8")))
 
     def rel(p: Path) -> str:
-        return str(p.relative_to(settings.output_path))
+        return p.relative_to(settings.output_path).as_posix()
 
     # 이전 산출물(변형 포함) 제거 후 재생성
     for old in job_dir.glob(f"{key}*.png"):
@@ -342,7 +387,7 @@ def repack_variants(req: RepackRequest, settings: Settings, job_id: str) -> dict
         return Path(path).name
 
     def rel(p: Path) -> str:
-        return str(p.relative_to(settings.output_path))
+        return p.relative_to(settings.output_path).as_posix()
 
     variant_entries = [a for a in assets if a.get("kind") == spec.key and a.get("is_image")]
     if len(variant_entries) <= 1:
@@ -463,7 +508,7 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
         codex_composer.compose_codex(entity, pairs, codex_png)
         codex_asset = GeneratedAsset(
             kind="codex", category="composite",
-            path=str(codex_png.relative_to(settings.output_path)),
+            path=codex_png.relative_to(settings.output_path).as_posix(),
             label=f"{cat.ENTITY_TYPES.get(entity, '')} 도감",
             demo=not settings.gemini_enabled, is_image=True,
         )

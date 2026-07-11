@@ -38,6 +38,44 @@ def test_catalog_payload_shape():
         assert f in a
 
 
+def test_vfx_and_bgm_in_catalog():
+    payload = cat.catalog_payload()
+    keys = {a["key"] for a in payload["assets"]}
+    assert {"vfx_element", "vfx_skill", "vfx_hit"} <= keys
+    assert "vfx" in payload["categories"]
+    assert "bgm" in keys
+    # VFX 는 컷아웃(투명) 대상 + 가변
+    assert cat.CATALOG["vfx_element"].cutout is True
+    assert cat.CATALOG["vfx_element"].variable is True
+
+
+def test_bgm_generation_makes_valid_wav(tmp_path):
+    import wave
+    from app.models import EntityConcept
+    from app.services import bgm_service
+    concept = EntityConcept(name="아리아", title="현자", genre="fantasy",
+                            role="마법사", tagline="", appearance="", personality="",
+                            backstory="")
+    wav = tmp_path / "bgm.wav"
+    brief = tmp_path / "bgm.txt"
+    ok = bgm_service.generate_bgm(concept, wav, brief, "fantasy")
+    assert ok and wav.exists() and brief.exists()
+    with wave.open(str(wav)) as w:
+        assert w.getframerate() == 22050
+        assert w.getnframes() > 22050  # 1초 이상
+    assert "BPM" in brief.read_text(encoding="utf-8")
+
+
+def test_pipeline_vfx_bgm_assets(settings):
+    req = GenerationRequest(entity_type="character", name="이펙트", role="마법사",
+                            genre="fantasy", assets=["vfx_element", "bgm"], variant_count=3)
+    res = pipeline.run_pipeline(req, settings, "seed_20260711-150000")
+    kinds = {a.kind for a in res.assets}
+    assert "vfx_element" in kinds  # 이미지 변형
+    assert "bgm" in kinds and "bgm_guide" in kinds
+    assert len([a for a in res.assets if a.kind == "vfx_element"]) == 3
+
+
 def test_default_keys_present_for_each_entity():
     for entity in cat.ENTITY_TYPES:
         keys = cat.default_keys(entity)
@@ -117,8 +155,9 @@ def test_pipeline_demo_generates_assets(settings):
     assert "portrait" in kinds
     assert "sheet_png" in kinds
     assert res.concept.name  # 기획서 생성됨
-    # result.json 저장 확인
-    assert (settings.output_path / "job_test" / "result.json").exists()
+    # 폴더명은 장르_직업_캐릭명_날짜 로 재구성됨
+    assert res.job_id.startswith("판타지_기사_테스트영웅_")
+    assert (settings.output_path / res.job_id / "result.json").exists()
 
 
 def test_pipeline_transparent_cutout(settings):
@@ -142,9 +181,9 @@ def test_batch_pipeline_demo(settings):
 def test_regenerate_asset(settings):
     req = GenerationRequest(entity_type="character", name="재생성", role="궁수",
                             assets=["portrait", "emblem"], variant_count=2)
-    pipeline.run_pipeline(req, settings, "job_regen")
+    res = pipeline.run_pipeline(req, settings, "job_regen")
     rr = RegenerateRequest(asset_key="emblem", variant_count=2)
-    new = pipeline.regenerate_asset(rr, settings, "job_regen")
+    new = pipeline.regenerate_asset(rr, settings, res.job_id)
     assert new and all(a.kind == "emblem" for a in new)
 
 
@@ -153,14 +192,14 @@ def test_repack_variants_keeps_selected(settings):
     req = GenerationRequest(entity_type="character", name="재패킹", role="전사",
                             assets=["expressions"], variant_count=5, sprite_sheet=True)
     res = pipeline.run_pipeline(req, settings, "job_repack")
-    job_dir = settings.output_path / "job_repack"
+    job_dir = settings.output_path / res.job_id
     import re
     numbered = re.compile(r"expressions_\d+\.png$")
     before = sorted(f.name for f in job_dir.glob("expressions_*.png") if numbered.match(f.name))
     assert len(before) == 5
     keep = ["expressions_1.png", "expressions_3.png", "expressions_5.png"]
     out = pipeline.repack_variants(
-        RepackRequest(asset_key="expressions", keep=keep), settings, "job_repack")
+        RepackRequest(asset_key="expressions", keep=keep), settings, res.job_id)
     assert len(out["kept"]) == 3
     assert set(out["dropped"]) == {"expressions_2.png", "expressions_4.png"}
     after = sorted(f.name for f in job_dir.glob("expressions_*.png") if numbered.match(f.name))
@@ -174,18 +213,18 @@ def test_repack_variants_keeps_selected(settings):
 def test_repack_requires_one_kept(settings):
     req = GenerationRequest(entity_type="character", name="x", role="전사",
                             assets=["expressions"], variant_count=3)
-    pipeline.run_pipeline(req, settings, "job_rp2")
+    res = pipeline.run_pipeline(req, settings, "job_rp2")
     with pytest.raises(ValueError):
         pipeline.repack_variants(
-            RepackRequest(asset_key="expressions", keep=[]), settings, "job_rp2")
+            RepackRequest(asset_key="expressions", keep=[]), settings, res.job_id)
 
 
 def test_regenerate_rejects_non_image(settings):
     req = GenerationRequest(entity_type="character", name="x", role="전사",
                             assets=["portrait"], variant_count=1)
-    pipeline.run_pipeline(req, settings, "job_x")
+    res = pipeline.run_pipeline(req, settings, "job_x")
     with pytest.raises(ValueError):
-        pipeline.regenerate_asset(RegenerateRequest(asset_key="sheet"), settings, "job_x")
+        pipeline.regenerate_asset(RegenerateRequest(asset_key="sheet"), settings, res.job_id)
 
 
 # ── 진행률 / 취소 ─────────────────────────────────────────
@@ -283,11 +322,13 @@ def test_import_run_generates_independent_jobs(settings):
         genre=p["genre"], art_style=p["art_style"], keywords=p["keywords"],
         assets=p["assets"], variant_count=p["variant_count"],
         image_scale=p["image_scale"], transparent=p["transparent"]) for p in plans]
-    job_ids = [f"imp_{i}" for i in range(len(reqs))]
+    job_ids = [f"imp_{i}_20260711-130000" for i in range(len(reqs))]
     results = pipeline.run_import(reqs, settings, job_ids)
     assert len(results) == 2
-    assert (settings.output_path / "imp_0" / "result.json").exists()
-    assert (settings.output_path / "imp_1" / "result.json").exists()
+    # 각 행은 장르_직업_캐릭명_날짜 로 재구성된 독립 잡 폴더로 생성됨
+    for res in results:
+        assert (settings.output_path / res.job_id / "result.json").exists()
+        assert "/" not in res.job_id  # 최상위(중첩 아님)
 
 
 # ── 이미지 편집 ───────────────────────────────────────────

@@ -21,7 +21,38 @@ def _hex(h: str) -> tuple[int, int, int]:
         return (80, 80, 100)
 
 
+# 속성명 → 대표색 (VFX 플레이스홀더용)
+_ELEMENT_COLORS = {
+    "화염": (255, 90, 30), "화염 히트": (255, 90, 30), "용암": (255, 70, 20),
+    "빙결": (90, 200, 255), "빙결 히트": (90, 200, 255), "물": (60, 140, 255),
+    "전격": (255, 230, 90), "감전": (255, 230, 90), "섬광": (255, 250, 210),
+    "맹독": (150, 230, 70), "암흑": (150, 80, 220), "신성": (255, 240, 180),
+    "대지": (200, 150, 90), "질풍": (140, 255, 200), "회오리": (140, 255, 200),
+    "치유": (120, 255, 160), "보호막": (120, 200, 255), "버프": (255, 220, 120),
+    "디버프": (200, 90, 200), "폭발": (255, 140, 40), "폭산": (255, 140, 40),
+    "참격": (230, 240, 255), "베기": (230, 240, 255), "오라": (180, 130, 255),
+}
+
+
+def _vfx_color(label, palette) -> tuple[int, int, int]:
+    # 라벨 끝의 변형명(예: "이름 · 화염")에서 속성 추출
+    elem = label.split("·")[-1].strip() if "·" in label else ""
+    if elem in _ELEMENT_COLORS:
+        return _ELEMENT_COLORS[elem]
+    for k, c in _ELEMENT_COLORS.items():
+        if k in label:
+            return c
+    return _hex((palette or ["#7c5cff"])[0])
+
+
 def generate_placeholder(out_path, size, label, palette, style) -> None:
+    if style == "vfx":
+        img = _placeholder_vfx(size, label, palette)
+        draw = ImageDraw.Draw(img, "RGBA")
+        _label_badge(img, draw, label)
+        _demo_mark(draw, *size)
+        img.save(out_path)
+        return
     if style == "pixel":
         img = _placeholder_pixel(size, label, palette)
     else:
@@ -227,6 +258,39 @@ def _logo_text(img, draw, label, colors) -> None:
     for dx, dy in [(-3, 0), (3, 0), (0, -3), (0, 3)]:
         draw.text((x + dx, y + dy), name, font=font, fill=(*accent, 230))
     draw.text((x, y), name, font=font, fill=(245, 240, 230))
+
+
+def _placeholder_vfx(size, label, palette) -> Image.Image:
+    """검은 배경 위 발광 방사형 이펙트 (속성별 색상)."""
+    from PIL import ImageFilter
+
+    w, h = size
+    col = _vfx_color(label, palette)
+    img = Image.new("RGB", (w, h), (6, 5, 10))
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    cx, cy = w // 2, h // 2
+    # 중심 발광
+    for r, a in [(int(min(w, h) * 0.42), 60), (int(min(w, h) * 0.30), 110),
+                 (int(min(w, h) * 0.18), 200), (int(min(w, h) * 0.08), 255)]:
+        gd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(*col, a))
+    # 방사형 스파크
+    rnd = _LCG(int(hashlib.md5(label.encode()).hexdigest(), 16))
+    spikes = rnd.randint(8, 14)
+    for i in range(spikes):
+        ang = 2 * math.pi * i / spikes + rnd.random() * 0.3
+        rr = int(min(w, h) * (0.28 + rnd.random() * 0.2))
+        x2, y2 = cx + rr * math.cos(ang), cy + rr * math.sin(ang)
+        gd.line([cx, cy, x2, y2], fill=(*col, 180), width=max(2, w // 90))
+        pr = max(2, w // 60)
+        gd.ellipse([x2 - pr, y2 - pr, x2 + pr, y2 + pr], fill=(255, 255, 255, 200))
+    glow = glow.filter(ImageFilter.GaussianBlur(max(1, w // 160)))
+    img.paste(Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB"), (0, 0))
+    # 중심 하이라이트
+    d = ImageDraw.Draw(img, "RGBA")
+    hr = max(3, int(min(w, h) * 0.05))
+    d.ellipse([cx - hr, cy - hr, cx + hr, cy + hr], fill=(255, 255, 255, 230))
+    return img
 
 
 def _placeholder_pixel(size, label, palette) -> Image.Image:

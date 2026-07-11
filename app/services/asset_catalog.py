@@ -21,6 +21,7 @@ CATEGORIES = {
     "animation": "애니메이션",
     "item": "아이템 / 장비",
     "environment": "환경 / 배경",
+    "vfx": "특수효과 (VFX)",
     "ui": "UI / 브랜딩",
     "hud": "인게임 UI / HUD",
     "composite": "통합 산출물",
@@ -94,6 +95,7 @@ _CUTOUT_KEYS = frozenset({
     "weapon_icons", "item_grid", "skill_icons", "rarity_frame",
     "ui_icons", "ui_currency",
     "anim_idle", "anim_walk", "anim_attack",
+    "vfx_element", "vfx_skill", "vfx_hit",
 })
 # 애니메이션 프레임 시퀀스 에셋 (스프라이트 시트 + GIF 자동 생성)
 _ANIM_KEYS = frozenset({"anim_idle", "anim_walk", "anim_attack"})
@@ -307,6 +309,38 @@ _SPECS: list[AssetSpec] = [
         desc="하늘·파노라마 배경",
     ),
 
+    # ── 특수효과 (VFX) ────────────────────────────────────────────
+    AssetSpec(
+        "vfx_element", "속성 이펙트", "vfx", (512, 512),
+        "game VFX effect sprite of a {variant} elemental magic burst, "
+        "glowing energy particles, radiant {variant} attribute FX, {style}, "
+        "isolated on a flat solid black background, no character, no text",
+        placeholder="vfx",
+        variant_pool=("화염", "빙결", "전격", "맹독", "신성", "암흑", "대지", "질풍",
+                      "물", "용암"),
+        desc="속성별(화염·빙결·전격…) 마법 이펙트 (개수 선택)",
+    ),
+    AssetSpec(
+        "vfx_skill", "스킬 이펙트", "vfx", (512, 512),
+        "game VFX effect sprite of a {variant} skill effect, dynamic energy, "
+        "motion trails and sparks, {style}, isolated on a flat solid black "
+        "background, no character, no text",
+        placeholder="vfx",
+        variant_pool=("참격", "폭발", "오라", "투사체", "치유", "보호막", "버프",
+                      "디버프", "소환진", "회오리"),
+        desc="스킬 연출(참격·폭발·오라·소환진…) 이펙트 (개수 선택)",
+    ),
+    AssetSpec(
+        "vfx_hit", "타격/히트 이펙트", "vfx", (512, 512),
+        "game VFX hit impact sprite of a {variant} impact effect, flash and "
+        "debris particles, comic impact shape, {style}, isolated on a flat "
+        "solid black background, no character, no text",
+        placeholder="vfx",
+        variant_pool=("강타", "관통", "폭산", "섬광", "베기", "감전", "빙결 히트",
+                      "화염 히트"),
+        desc="타격·피격 순간 이펙트 (개수 선택)",
+    ),
+
     # ── UI / 브랜딩 ───────────────────────────────────────────────
     AssetSpec(
         "logo", "타이틀 로고", "ui", (1024, 512),
@@ -395,6 +429,11 @@ _SPECS: list[AssetSpec] = [
         "video", "쇼케이스 영상 (GIF/MP4) + CapCut", "composite", (0, 0), "",
         default=True, is_image=False,
         desc="Ken Burns 슬라이드쇼 + CapCut draft",
+    ),
+    AssetSpec(
+        "bgm", "배경음악 (BGM 루프 + CapCut 가이드)", "composite", (0, 0), "",
+        is_image=False,
+        desc="분위기 확인용 루프 음원 + CapCut 음악 검색 가이드",
     ),
 ]
 
