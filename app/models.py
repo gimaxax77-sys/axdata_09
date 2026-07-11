@@ -65,3 +65,25 @@ class GenerationResult(BaseModel):
     concept: EntityConcept
     assets: list[GeneratedAsset] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+
+
+class BatchRequest(BaseModel):
+    """일괄 생성(도감) 요청 — 여러 개체를 한 번에 생성."""
+
+    entity_type: str = Field("monster", description="character | monster | npc")
+    genre: str = "fantasy"
+    art_style: str = "semi-realistic digital painting"
+    keywords: str = ""
+    count: int = Field(3, ge=1, le=8, description="생성 개수 (1~8)")
+    roles: list[str] = Field(default_factory=list, description="개체별 역할/종족 (선택)")
+    names: list[str] = Field(default_factory=list, description="개체별 이름 (선택)")
+    assets: list[str] = Field(default_factory=list, description="각 개체에 적용할 에셋")
+    make_codex: bool = Field(True, description="도감 오버뷰 이미지 생성")
+
+
+class BatchResult(BaseModel):
+    batch_id: str
+    entity_type: str
+    entries: list[GenerationResult] = Field(default_factory=list)
+    codex: GeneratedAsset | None = None
+    warnings: list[str] = Field(default_factory=list)

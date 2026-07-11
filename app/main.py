@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .models import GenerationRequest, GenerationResult
+from .models import BatchRequest, BatchResult, GenerationRequest, GenerationResult
 from .services import asset_catalog, pipeline
 
 settings = get_settings()
@@ -60,6 +60,17 @@ def generate(req: GenerationRequest) -> GenerationResult:
         result = pipeline.run_pipeline(req, settings, job_id)
     except Exception as exc:  # pragma: no cover - top-level guard
         raise HTTPException(status_code=500, detail=f"생성 실패: {exc}") from exc
+    return result
+
+
+@app.post("/api/generate_batch", response_model=BatchResult)
+def generate_batch(req: BatchRequest) -> BatchResult:
+    """일괄 생성 — 여러 개체 + 도감 오버뷰."""
+    batch_id = "batch_" + uuid.uuid4().hex[:10]
+    try:
+        result = pipeline.run_batch(req, settings, batch_id)
+    except Exception as exc:  # pragma: no cover - top-level guard
+        raise HTTPException(status_code=500, detail=f"일괄 생성 실패: {exc}") from exc
     return result
 
 

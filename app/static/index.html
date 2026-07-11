@@ -21,15 +21,36 @@
   <main class="layout">
     <!-- 입력 폼 -->
     <section class="panel form-panel">
+      <div class="mode-toggle" id="mode-toggle">
+        <button type="button" class="mtab on" data-m="single">단일 생성</button>
+        <button type="button" class="mtab" data-m="batch">일괄 생성 · 도감</button>
+      </div>
+
       <h2>1. 대상 설정</h2>
       <form id="gen-form">
         <div class="entity-tabs" id="entity-tabs">
           <!-- JS로 채움 -->
         </div>
 
-        <label>이름 <span class="hint">(비우면 자동 생성)</span>
-          <input name="name" type="text" placeholder="예: 카엘, 카론, 바르트…" />
-        </label>
+        <div id="single-fields">
+          <label>이름 <span class="hint">(비우면 자동 생성)</span>
+            <input name="name" type="text" placeholder="예: 카엘, 카론, 바르트…" />
+          </label>
+        </div>
+
+        <div id="batch-fields" class="hidden">
+          <div class="row2">
+            <label>생성 개수 <span class="hint">(1~8)</span>
+              <input name="count" type="number" min="1" max="8" value="4" />
+            </label>
+            <label class="chk-label">도감 오버뷰
+              <label class="chk-inline"><input type="checkbox" name="make_codex" checked /> 생성</label>
+            </label>
+          </div>
+          <label>역할 / 종족 목록 <span class="hint">(한 줄에 하나, 비우면 자동 다양화)</span>
+            <textarea name="roles" rows="3" placeholder="드래곤&#10;골렘&#10;언데드"></textarea>
+          </label>
+        </div>
 
         <div class="row2">
           <label>장르

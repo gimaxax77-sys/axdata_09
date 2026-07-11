@@ -131,14 +131,18 @@ def _generate_placeholder(out_path, size, label, palette, style) -> None:
         draw = ImageDraw.Draw(img, "RGBA")
         _scatter_shapes(draw, w, h, colors, label)
 
-        if style in ("figure", "card"):
+        if style in ("figure", "card", "splash"):
             _silhouette(draw, w, h, colors[len(colors) // 2])
         if style == "card":
             _card_frame(draw, w, h, colors)
         if style == "logo":
             _logo_text(img, draw, label, colors)
-        elif style == "scene":
+        elif style in ("scene", "splash"):
             _horizon(draw, w, h, colors)
+        if style == "splash":
+            _vignette(img, colors)
+        if style == "namecard":
+            _namecard_frame(draw, w, h, colors)
 
     draw = ImageDraw.Draw(img, "RGBA")
     if style != "logo":
@@ -209,6 +213,38 @@ def _card_frame(draw, w, h, colors) -> None:
                            fill=(0, 0, 0, 150), outline=(*accent, 200), width=3)
     draw.rounded_rectangle([m * 2, int(h * 0.86), w - m * 2, h - m * 2], radius=m // 2,
                            fill=(0, 0, 0, 150), outline=(*accent, 200), width=3)
+
+
+def _vignette(img, colors) -> None:
+    """가장자리를 어둡게 (스플래시 아트 시네마틱 느낌)."""
+    w, h = img.size
+    mask = Image.new("L", (w, h), 0)
+    md = ImageDraw.Draw(mask)
+    md.ellipse([-w * 0.2, -h * 0.2, w * 1.2, h * 1.2], fill=255)
+    mask = mask.point(lambda v: int(v * 0.85))
+    dark = Image.new("RGB", (w, h), (8, 6, 14))
+    img.paste(Image.composite(img, dark, mask), (0, 0))
+
+
+def _namecard_frame(draw, w, h, colors) -> None:
+    """가로형 프로필 카드: 아바타 원 + 이름 바 + 테두리."""
+    accent = colors[2 if len(colors) > 2 else 0]
+    m = int(h * 0.06)
+    draw.rounded_rectangle([m, m, w - m, h - m], radius=m, outline=(*accent, 230),
+                           width=max(4, m // 4))
+    # 좌측 아바타 원
+    av = int(h * 0.62)
+    ax, ay = int(w * 0.06), (h - av) // 2
+    draw.ellipse([ax, ay, ax + av, ay + av], fill=(0, 0, 0, 120),
+                 outline=(*accent, 230), width=4)
+    # 우측 이름/설명 바
+    tx = ax + av + int(w * 0.04)
+    draw.rounded_rectangle([tx, int(h * 0.30), w - m * 2, int(h * 0.44)],
+                           radius=8, fill=(*accent, 210))
+    draw.rounded_rectangle([tx, int(h * 0.50), int(w * 0.82), int(h * 0.60)],
+                           radius=6, fill=(0, 0, 0, 130))
+    draw.rounded_rectangle([tx, int(h * 0.63), int(w * 0.70), int(h * 0.71)],
+                           radius=6, fill=(0, 0, 0, 130))
 
 
 def _logo_text(img, draw, label, colors) -> None:

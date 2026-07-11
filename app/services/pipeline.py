@@ -7,10 +7,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import random
+from concurrent.futures import ThreadPoolExecutor
+
 from ..config import Settings
-from ..models import GeneratedAsset, GenerationRequest, GenerationResult
+from ..models import (
+    BatchRequest,
+    BatchResult,
+    GeneratedAsset,
+    GenerationRequest,
+    GenerationResult,
+)
 from . import asset_catalog as cat
-from . import capcut_service, gemini_service, gpt_service, sheet_composer
+from . import (
+    capcut_service,
+    codex_composer,
+    gemini_service,
+    gpt_service,
+    sheet_composer,
+)
 
 
 def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> GenerationResult:
@@ -96,6 +111,87 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
                                          demo=demo_art, is_image=False))
 
     return GenerationResult(job_id=job_id, concept=concept, assets=assets, warnings=warnings)
+
+
+_FALLBACK_ROLES = {
+    "character": ["전사", "마법사", "궁수", "도적", "성기사", "정찰병", "해커", "파일럿"],
+    "monster": ["드래곤", "골렘", "언데드", "거대 늑대", "슬라임", "정령", "키메라", "리치"],
+    "npc": ["상인", "대장장이", "여관 주인", "사제", "정보상", "경비병", "학자", "음유시인"],
+}
+
+# 데모 모드 일괄 생성 시 개체 이름 중복을 피하기 위한 고유 이름 풀(엔티티별 8개+)
+_BATCH_NAMES = {
+    "character": ["카엘", "세라핀", "루멘", "녹스", "아리아", "제로", "바이런", "이리스"],
+    "monster": ["그림", "발록", "누리스", "카론", "벨제", "라우", "모르가", "제피르"],
+    "npc": ["바르트", "미라", "톰슨", "엘리사", "고든", "네리", "오딘", "실비아"],
+}
+
+
+def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResult:
+    """여러 개체를 한 번에 생성하고 도감 오버뷰를 만든다."""
+    entity = req.entity_type if req.entity_type in cat.ENTITY_TYPES else "character"
+    count = max(1, min(8, req.count))
+    roles_pool = _FALLBACK_ROLES.get(entity, _FALLBACK_ROLES["character"])
+
+    name_pool = _BATCH_NAMES.get(entity, _BATCH_NAMES["character"])
+
+    def make_req(i: int) -> GenerationRequest:
+        role = req.roles[i] if i < len(req.roles) and req.roles[i].strip() else \
+            roles_pool[i % len(roles_pool)]
+        if i < len(req.names) and req.names[i].strip():
+            name = req.names[i]
+        elif not settings.gpt_enabled:
+            # 데모: 고유 이름 배정 (풀 초과 시 로마자 접미사)
+            base = name_pool[i % len(name_pool)]
+            name = base if i < len(name_pool) else f"{base} {i // len(name_pool) + 1}"
+        else:
+            name = ""  # 실제 GPT 가 고유하게 작명
+        return GenerationRequest(
+            entity_type=entity, name=name, genre=req.genre, role=role,
+            art_style=req.art_style, keywords=req.keywords, assets=list(req.assets),
+        )
+
+    # 각 개체를 병렬 생성 (Pillow 인코딩은 GIL 을 해제하므로 스레드로 가속)
+    def worker(i: int) -> GenerationResult:
+        return run_pipeline(make_req(i), settings, f"{batch_id}/e{i}")
+
+    with ThreadPoolExecutor(max_workers=min(4, count)) as pool:
+        entries = list(pool.map(worker, range(count)))
+
+    warnings: list[str] = []
+    if entries and entries[0].warnings:
+        # 개체마다 같은 경고가 반복되므로 대표로 한 번만 노출
+        warnings = entries[0].warnings
+
+    codex_asset = None
+    if req.make_codex:
+        pairs = [(e.concept, _portrait_abs(e, settings)) for e in entries]
+        codex_png = settings.output_path / batch_id / "codex.png"
+        codex_composer.compose_codex(entity, pairs, codex_png)
+        codex_asset = GeneratedAsset(
+            kind="codex", category="composite",
+            path=str(codex_png.relative_to(settings.output_path)),
+            label=f"{cat.ENTITY_TYPES.get(entity, '')} 도감",
+            demo=not settings.gemini_enabled, is_image=True,
+        )
+
+    return BatchResult(batch_id=batch_id, entity_type=entity,
+                       entries=entries, codex=codex_asset, warnings=warnings)
+
+
+def _portrait_abs(entry: GenerationResult, settings: Settings) -> Path | None:
+    """도감 카드에 쓸 대표 이미지의 절대 경로."""
+    def pick():
+        for a in entry.assets:
+            if a.is_image and a.category == "character":
+                return a
+        for a in entry.assets:
+            if a.is_image and a.kind not in ("video",):
+                return a
+        return None
+
+    a = pick()
+    return (settings.output_path / a.path) if a else None
 
 
 def _pick_images(image_map: dict[str, Path]) -> dict[str, Path]:

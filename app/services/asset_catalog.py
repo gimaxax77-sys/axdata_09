@@ -99,6 +99,21 @@ _SPECS: list[AssetSpec] = [
         placeholder="emblem", default=True,
         desc="문장·심볼 아이콘",
     ),
+    AssetSpec(
+        "emote", "이모트 세트", "character", (512, 512),
+        "chat emote sticker of {name} expressing {variant}, {visual}, "
+        "cute expressive sticker, bold outline, {genre}, plain background",
+        placeholder="emblem",
+        variants=("웃음", "윙크", "화남", "눈물", "하트"),
+        desc="채팅·리액션 이모트 스티커",
+    ),
+    AssetSpec(
+        "companion", "탈것 / 펫", "character", (768, 768),
+        "the mount or companion pet of {name}, a {genre} creature matching "
+        "{visual} theme, full body, dynamic, plain neutral background",
+        placeholder="figure",
+        desc="탈것·펫·소환수",
+    ),
 
     # ── 아이템 / 장비 ─────────────────────────────────────────────
     AssetSpec(
@@ -125,6 +140,14 @@ _SPECS: list[AssetSpec] = [
         variants=("스킬 I", "스킬 II", "궁극기"),
         desc="스킬·이펙트 아이콘",
     ),
+    AssetSpec(
+        "rarity_frame", "등급 프레임", "item", (512, 512),
+        "game item card of {name} with a {variant} rarity ornate frame border, "
+        "{visual} theme, {genre}, glowing rarity effect, centered",
+        placeholder="emblem",
+        variants=("일반", "고급", "희귀", "영웅", "전설"),
+        desc="아이템 등급별 프레임",
+    ),
 
     # ── 환경 / 배경 ───────────────────────────────────────────────
     AssetSpec(
@@ -140,6 +163,13 @@ _SPECS: list[AssetSpec] = [
         "{visual} theme, top-down tiles, terrain and props, grid layout",
         placeholder="scene",
         desc="맵 타일·프롭",
+    ),
+    AssetSpec(
+        "skybox", "스카이박스", "environment", (1280, 640),
+        "panoramic 360 skybox of {name}'s world sky, {genre} setting, "
+        "{visual} palette, seamless horizon, clouds and atmosphere, no characters",
+        placeholder="scene",
+        desc="하늘·파노라마 배경",
     ),
 
     # ── UI / 브랜딩 ───────────────────────────────────────────────
@@ -163,6 +193,20 @@ _SPECS: list[AssetSpec] = [
         "{genre}, cinematic composition, space for title text",
         placeholder="scene",
         desc="홍보 배너·썸네일",
+    ),
+    AssetSpec(
+        "splash", "스플래시 아트", "ui", (1280, 720),
+        "cinematic key splash art of {name}, {visual}, {style}, {genre}, "
+        "dramatic hero shot, epic lighting, loading screen composition",
+        placeholder="splash",
+        desc="로딩·키 비주얼 아트",
+    ),
+    AssetSpec(
+        "namecard", "프로필 카드", "ui", (1024, 576),
+        "horizontal profile namecard of {name}, {visual}, {genre}, "
+        "avatar with name plate and decorative border, game profile card",
+        placeholder="namecard",
+        desc="프로필·명함 카드",
     ),
 
     # ── 통합 산출물 ───────────────────────────────────────────────
