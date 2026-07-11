@@ -15,7 +15,7 @@ ENTITY_TYPES = {
     "npc": "NPC",
 }
 
-# 카테고리 (UI 그룹 및 표시 순서)
+# 카테고리 (중분류 — 세부 그룹 라벨)
 CATEGORIES = {
     "character": "캐릭터 아트",
     "animation": "애니메이션",
@@ -26,6 +26,17 @@ CATEGORIES = {
     "hud": "인게임 UI / HUD",
     "composite": "통합 산출물",
 }
+
+# 상위 메뉴 (대분류) — 카테고리(중분류)를 6개 메뉴로 묶는다. 선택 화면과
+# 결과 산출물이 모두 이 순서·구성으로 정리된다.
+SUPERGROUPS = [
+    {"key": "character", "label": "캐릭터", "cats": ["character", "animation"]},
+    {"key": "item", "label": "아이템", "cats": ["item"]},
+    {"key": "environment", "label": "환경", "cats": ["environment"]},
+    {"key": "vfx", "label": "특수효과", "cats": ["vfx"]},
+    {"key": "ui", "label": "UI", "cats": ["ui", "hud"]},
+    {"key": "set", "label": "세트", "cats": ["composite"]},
+]
 
 # 장르 (UI 드롭다운). 실제 API 는 모든 장르를 프롬프트에 반영한다.
 GENRES = {
@@ -453,6 +464,7 @@ def catalog_payload() -> dict:
     return {
         "entity_types": ENTITY_TYPES,
         "categories": CATEGORIES,
+        "supergroups": SUPERGROUPS,
         "genres": GENRES,
         "art_styles": ART_STYLES,
         "role_groups": ROLE_GROUPS,

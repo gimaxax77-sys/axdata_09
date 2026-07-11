@@ -370,31 +370,49 @@ function renderEntityTabs() {
   }));
 }
 
-// ── 에셋 선택기 (카테고리별) ─────────────────────────────
-function renderAssetPicker() {
+// 에셋을 6개 상위 메뉴(대분류) → 카테고리(중분류) 순으로 묶는다.
+// 선택 화면과 결과 산출물이 같은 구조를 공유하도록 한 곳에서 계산한다.
+function groupBySuper(assets) {
   const cats = CATALOG.categories;
-  const grouped = {};
-  CATALOG.assets
-    .filter((a) => a.entities.includes(ENTITY))
-    .forEach((a) => { (grouped[a.category] ||= []).push(a); });
+  const supers = CATALOG.supergroups || [];
+  const byCat = {};
+  assets.forEach((a) => { (byCat[a.category] ||= []).push(a); });
+  return supers.map((sg) => {
+    const subs = sg.cats
+      .filter((c) => byCat[c])
+      .map((c) => ({ cat: c, label: cats[c], items: byCat[c] }));
+    const count = subs.reduce((n, s) => n + s.items.length, 0);
+    return { key: sg.key, label: sg.label, subs, count };
+  }).filter((sg) => sg.count > 0);
+}
 
-  $("#asset-picker").innerHTML = Object.keys(cats)
-    .filter((c) => grouped[c])
-    .map((c, idx) => `
-      <details class="asset-group" ${idx < 2 ? "open" : ""}>
-        <summary>${cats[c]} <span class="cnt">(${grouped[c].length})</span>
-          <span class="grp-sel"><a href="#" class="cat-all" data-cat="${c}">전체</a><a href="#" class="cat-none" data-cat="${c}">해제</a></span>
+// ── 에셋 선택기 (상위 메뉴 6종) ─────────────────────────────
+function renderAssetPicker() {
+  const forEntity = CATALOG.assets.filter((a) => a.entities.includes(ENTITY));
+  const supers = groupBySuper(forEntity);
+
+  $("#asset-picker").innerHTML = supers.map((sg, idx) => {
+    // 중분류가 2개 이상인 메뉴(캐릭터·UI)만 세부 라벨을 보여준다.
+    const body = sg.subs.map((sub) => {
+      const head = sg.subs.length > 1 ? `<p class="sub-cat">${sub.label}</p>` : "";
+      const chips = sub.items.map((a) => {
+        const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
+        return `
+        <label class="asset-chip" title="${a.desc}">
+          <input type="checkbox" name="asset" value="${a.key}" ${a.key === "fullbody" ? "checked" : ""} />
+          <span>${a.label}${badge ? `<i>${badge}</i>` : ""}</span>
+        </label>`;
+      }).join("");
+      return head + `<div class="group-items">${chips}</div>`;
+    }).join("");
+    return `
+      <details class="asset-group" ${idx < 1 ? "open" : ""}>
+        <summary>${sg.label} <span class="cnt">(${sg.count})</span>
+          <span class="grp-sel"><a href="#" class="cat-all" data-sg="${sg.key}">전체</a><a href="#" class="cat-none" data-sg="${sg.key}">해제</a></span>
         </summary>
-        <div class="group-items">
-          ${grouped[c].map((a) => {
-            const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
-            return `
-            <label class="asset-chip" title="${a.desc}">
-              <input type="checkbox" name="asset" value="${a.key}" ${a.key === "fullbody" ? "checked" : ""} />
-              <span>${a.label}${badge ? `<i>${badge}</i>` : ""}</span>
-            </label>`; }).join("")}
-        </div>
-      </details>`).join("");
+        ${body}
+      </details>`;
+  }).join("");
 
   // 일괄 모드에서는 개체당 영상(N×)이 느리므로 기본 해제
   if (MODE === "batch") {
@@ -1188,7 +1206,6 @@ function renderResult(data) {
   CURRENT_RESULT = data;
   const c = data.concept;
   const a = data.assets;
-  const cats = CATALOG.categories;
 
   const byKind = (k) => a.find((x) => x.kind === k);
   const portrait = a.find((x) => x.is_image && x.category === "character") || byKind("sheet_png");
@@ -1210,19 +1227,14 @@ function renderResult(data) {
 
   const entityLabel = CATALOG.entity_types[c.entity_type] || "캐릭터";
 
-  // 이미지 에셋을 카테고리별 그룹으로
+  // 이미지 에셋을 6개 상위 메뉴 → 중분류 순으로 그룹핑
   const imgAssets = a.filter((x) => x.is_image && x.kind !== "sheet_png" && x.kind !== "video");
-  const groups = {};
-  imgAssets.forEach((x) => { (groups[x.category] ||= []).push(x); });
-
   const regenKeys = new Set(CATALOG.assets.map((a) => a.key));
   const fnOf = (path) => path.split(/[\\/]/).pop();  // / 와 \ 모두 대응
   // 같은 kind 의 이미지가 여러 장이면(variant) 비교·채택 버튼 노출
   const kindCounts = {};
   imgAssets.forEach((x) => { kindCounts[x.kind] = (kindCounts[x.kind] || 0) + 1; });
-  const assetGroups = Object.keys(cats).filter((cat) => groups[cat]).map((cat) => `
-    <div><p class="section-title">${cats[cat]}</p>
-      <div class="assets-grid">${groups[cat].map((x) => `
+  const card = (x) => `
         <div class="asset-card" data-kind="${x.kind}" data-file="${fnOf(x.path)}" data-label="${x.label}">
           <div class="media"><img src="${FILES}${x.path}?t=${Date.now()}" alt="${x.label}" loading="lazy"/></div>
           <div class="asset-meta"><span class="lbl">${x.label}${x.demo ? '<span class="badge-demo">DEMO</span>' : ""}</span>
@@ -1232,8 +1244,12 @@ function renderResult(data) {
               ${regenKeys.has(x.kind) ? `<button type="button" class="regen-btn" data-regen="${x.kind}" title="이 에셋만 다시 생성">↻</button>` : ""}
               <a href="${FILES}${x.path}" download>⬇</a></span>
           </div>
-        </div>`).join("")}
-      </div>
+        </div>`;
+  const assetGroups = groupBySuper(imgAssets).map((sg) => `
+    <div class="super-block"><p class="section-title">${sg.label}</p>
+      ${sg.subs.map((sub) => `
+        ${sg.subs.length > 1 ? `<p class="sub-cat">${sub.label}</p>` : ""}
+        <div class="assets-grid">${sub.items.map(card).join("")}</div>`).join("")}
     </div>`).join("");
 
   // 시트 / 영상
@@ -1306,27 +1322,26 @@ function renderResult(data) {
   $("#result").classList.remove("hidden");
 }
 
-// 이미지 에셋을 카테고리별 그룹 HTML로 (시트/영상 제외)
+// 이미지 에셋을 6개 상위 메뉴 그룹 HTML로 (시트/영상 제외)
 function assetGroupsHTML(assets, compact = false) {
-  const cats = CATALOG.categories;
   const imgs = assets.filter((x) => x.is_image && x.kind !== "sheet_png" && x.kind !== "video" && x.kind !== "codex");
-  const groups = {};
-  imgs.forEach((x) => { (groups[x.category] ||= []).push(x); });
-  return Object.keys(cats).filter((c) => groups[c]).map((c) => `
-    <div><p class="section-title">${cats[c]}</p>
-      <div class="assets-grid ${compact ? "compact" : ""}">${groups[c].map((x) => `
+  const card = (x) => `
         <div class="asset-card">
           <div class="media"><img src="${FILES}${x.path}" alt="${x.label}" loading="lazy"/></div>
           <div class="asset-meta"><span class="lbl">${x.label}${x.demo ? '<span class="badge-demo">DEMO</span>' : ""}</span>
             <a href="${FILES}${x.path}" download>⬇</a></div>
-        </div>`).join("")}
-      </div></div>`).join("");
+        </div>`;
+  return groupBySuper(imgs).map((sg) => `
+    <div class="super-block"><p class="section-title">${sg.label}</p>
+      ${sg.subs.map((sub) => `
+        ${sg.subs.length > 1 ? `<p class="sub-cat">${sub.label}</p>` : ""}
+        <div class="assets-grid ${compact ? "compact" : ""}">${sub.items.map(card).join("")}</div>`).join("")}
+    </div>`).join("");
 }
 
 // ── 일괄 생성(도감) 결과 ─────────────────────────────────
 function renderBatch(data) {
   CURRENT_JOB_ID = null;  // 개별 재생성은 단일 잡에만 적용
-  const cats = CATALOG.categories;
   const entityLabel = CATALOG.entity_types[data.entity_type] || "";
 
   const warnHtml = data.warnings.length

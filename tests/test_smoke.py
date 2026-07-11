@@ -38,6 +38,17 @@ def test_catalog_payload_shape():
         assert f in a
 
 
+def test_supergroups_cover_every_category():
+    # 6개 상위 메뉴가 모든 중분류를 한 번씩만 담아야 함(선택·산출물 그룹 기준)
+    payload = cat.catalog_payload()
+    supers = payload["supergroups"]
+    assert [sg["key"] for sg in supers] == \
+        ["character", "item", "environment", "vfx", "ui", "set"]
+    covered = [c for sg in supers for c in sg["cats"]]
+    assert sorted(covered) == sorted(payload["categories"])   # 빠짐·중복 없음
+    assert len(covered) == len(set(covered))
+
+
 def test_vfx_and_bgm_in_catalog():
     payload = cat.catalog_payload()
     keys = {a["key"] for a in payload["assets"]}
