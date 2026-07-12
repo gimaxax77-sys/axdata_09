@@ -150,11 +150,11 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
             elif req.style_lock and not spec.character_ref:
                 use_ref, style_only = anchor, True
 
-        # 아이템 일러스트: 선택한 등급(rarity)마다 1장씩(등급이 변형 축).
+        # 등급 축 에셋(아이템 일러스트·이펙트): 선택한 등급마다 1장씩 차등 생성.
         rar_override = rar_styles = None
-        if spec.key == "item_art":
-            rar_override = [r for r in req.rarities if r in cat.RARITY_STYLE] or ["일반"]
-            rar_styles = cat.RARITY_STYLE
+        if spec.key in cat.RARITY_ASSETS:
+            rar_override = [r for r in req.rarities if r in cat.RARITY_KEYS] or ["일반"]
+            rar_styles = cat.RARITY_ASSETS[spec.key]
 
         results = gemini_service.generate_asset(
             spec, concept, job_dir, settings,

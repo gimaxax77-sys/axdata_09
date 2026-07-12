@@ -88,12 +88,25 @@ def test_item_art_defaults_to_one_when_no_rarity(settings):
     assert len([a for a in res.assets if a.kind == "item_art"]) == 1
 
 
-def test_item_types_and_rarities_in_payload():
+def test_type_lists_and_rarities_in_payload():
     p = cat.catalog_payload()
-    assert p["item_types"] == ["무기", "방어구", "악세사리", "소비", "재료"]
+    assert p["type_lists"]["item_types"] == ["무기", "방어구", "악세사리", "소비", "재료"]
+    for k in ("env_types", "vfx_types", "ui_types"):
+        assert p["type_lists"][k]  # 대상별 종류 목록 존재
     assert "일반" in p["rarities"] and "무아" in p["rarities"]
-    item_subj = next(s for s in p["subjects"] if s["key"] == "item")
-    assert item_subj["role_preset"] == "item_types" and item_subj["rarities"] is True
+    subs = {s["key"]: s for s in p["subjects"]}
+    assert subs["item"]["role_preset"] == "item_types" and subs["item"]["rarities"] is True
+    assert subs["vfx"]["role_preset"] == "vfx_types" and subs["vfx"]["rarities"] is True
+    assert subs["environment"]["rarities"] is False and subs["ui"]["rarities"] is False
+
+
+def test_vfx_art_generates_per_rarity(settings):
+    # 특수효과도 등급 축: 선택한 등급마다 차등 이펙트 1장씩
+    req = GenerationRequest(subject="vfx", genre="fantasy", role="화염",
+                            assets=["vfx_art"], rarities=["일반", "무아"])
+    res = pipeline.run_pipeline(req, settings, "job_vfx_rar")
+    arts = [a for a in res.assets if a.kind == "vfx_art"]
+    assert len(arts) == 2
 
 
 @pytest.mark.parametrize("subject", ["environment", "vfx", "ui"])

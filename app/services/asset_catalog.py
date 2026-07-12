@@ -50,11 +50,11 @@ SUBJECTS = [
     {"key": "item", "label": "아이템", "concept": False, "supers": ["item"],
      "role_preset": "item_types", "rarities": True},
     {"key": "environment", "label": "환경", "concept": False, "supers": ["environment"],
-     "role_preset": "", "rarities": False},
+     "role_preset": "env_types", "rarities": False},
     {"key": "vfx", "label": "특수효과", "concept": False, "supers": ["vfx"],
-     "role_preset": "", "rarities": False},
+     "role_preset": "vfx_types", "rarities": True},
     {"key": "ui", "label": "UI", "concept": False, "supers": ["ui"],
-     "role_preset": "", "rarities": False},
+     "role_preset": "ui_types", "rarities": False},
 ]
 _SUBJECT_BY_KEY = {s["key"]: s for s in SUBJECTS}
 
@@ -119,21 +119,41 @@ ART_STYLES = [
     "comic / ink",
 ]
 
-# 아이템 종류 (아이템 대상의 '장르 옆 선택박스' — 직업 드롭다운과 동일 위치)
-ITEM_TYPES = ["무기", "방어구", "악세사리", "소비", "재료"]
+# 제작 대상별 '종류' 드롭다운 (장르 옆 선택박스 — 직업 드롭다운과 동일 위치).
+# role 입력칸을 채우는 빠른 시작값이며, 자유 입력으로 더 구체화할 수 있다.
+TYPE_LISTS = {
+    "item_types": ["무기", "방어구", "악세사리", "소비", "재료"],
+    "env_types": ["던전", "숲", "설원", "화산", "동굴", "사막", "해안", "도시",
+                  "폐허", "신전", "초원", "늪지", "하늘", "우주"],
+    "vfx_types": ["화염", "빙결", "전격", "맹독", "신성", "암흑", "대지", "질풍",
+                  "참격", "폭발", "치유 오라", "보호막", "버프", "소환"],
+    "ui_types": ["다크 판타지", "네온 사이버", "미니멀 플랫", "양피지 클래식",
+                 "파스텔 카툰", "하이테크 SF", "고딕 호러", "픽셀 레트로"],
+}
+ITEM_TYPES = TYPE_LISTS["item_types"]  # 하위호환
 
-# 아이템 등급 — 선택한 등급마다 1장씩 생성. style 은 이미지 프롬프트에 주입.
+# 등급 — 선택한 등급마다 1장씩. style 은 이미지 프롬프트에 주입(아이템/VFX 각각).
 RARITIES = [
-    {"key": "일반", "style": "common grade, plain ordinary materials, muted colors, no glow"},
-    {"key": "레어", "style": "rare grade, polished materials, subtle blue glow"},
-    {"key": "매직", "style": "magic grade, enchanted glowing runes, soft green-blue aura"},
-    {"key": "레전드", "style": "legendary grade, ornate golden details, radiant glow, embedded gemstones"},
-    {"key": "초월", "style": "transcendent grade, prismatic divine energy, brilliant halo, highly elaborate"},
-    {"key": "멸망", "style": "doom grade, dark corrupted crimson-and-black, ominous flames, menacing"},
-    {"key": "무아", "style": "ultimate void grade, pure white-gold cosmic aura, reality-warping ethereal glow"},
+    {"key": "일반", "item": "common grade, plain ordinary materials, muted colors, no glow",
+     "vfx": "common tier, small modest effect, simple sparse particles, muted colors"},
+    {"key": "레어", "item": "rare grade, polished materials, subtle blue glow",
+     "vfx": "rare tier, brighter effect, blue-tinted energy, moderate particles"},
+    {"key": "매직", "item": "magic grade, enchanted glowing runes, soft green-blue aura",
+     "vfx": "magic tier, glowing enchanted effect, swirling green-blue energy"},
+    {"key": "레전드", "item": "legendary grade, ornate golden details, radiant glow, embedded gemstones",
+     "vfx": "legendary tier, large radiant spectacular effect, golden brilliant burst"},
+    {"key": "초월", "item": "transcendent grade, prismatic divine energy, brilliant halo, highly elaborate",
+     "vfx": "transcendent tier, prismatic divine explosion, screen-filling holy light"},
+    {"key": "멸망", "item": "doom grade, dark corrupted crimson-and-black, ominous flames, menacing",
+     "vfx": "doom tier, dark crimson-black destructive blast, ominous corrupted energy"},
+    {"key": "무아", "item": "ultimate void grade, pure white-gold cosmic aura, reality-warping ethereal glow",
+     "vfx": "ultimate void tier, reality-warping cosmic cataclysm, pure white-gold apocalyptic energy"},
 ]
 RARITY_KEYS = [r["key"] for r in RARITIES]
-RARITY_STYLE = {r["key"]: r["style"] for r in RARITIES}
+RARITY_STYLE = {r["key"]: r["item"] for r in RARITIES}       # 아이템용
+VFX_RARITY_STYLE = {r["key"]: r["vfx"] for r in RARITIES}    # 특수효과용
+# 등급이 변형 축이 되는 에셋 → 각자의 등급 스타일 맵
+RARITY_ASSETS = {"item_art": RARITY_STYLE, "vfx_art": VFX_RARITY_STYLE}
 
 ALL_ENTITIES = frozenset(ENTITY_TYPES)
 
@@ -150,7 +170,7 @@ _CUTOUT_KEYS = frozenset({
     "item_art", "weapon_icons", "item_grid", "skill_icons", "rarity_frame",
     "ui_icons", "ui_currency",
     "anim_idle", "anim_walk", "anim_attack",
-    "vfx_element", "vfx_skill", "vfx_hit",
+    "vfx_art", "vfx_element", "vfx_skill", "vfx_hit",
 })
 # 애니메이션 프레임 시퀀스 에셋 (스프라이트 시트 + GIF 자동 생성)
 _ANIM_KEYS = frozenset({"anim_idle", "anim_walk", "anim_attack"})
@@ -373,6 +393,13 @@ _SPECS: list[AssetSpec] = [
 
     # ── 특수효과 (VFX) ────────────────────────────────────────────
     AssetSpec(
+        "vfx_art", "이펙트 (등급별)", "vfx", (768, 768),
+        "dynamic game VFX special effect of {name}, {visual}, {genre} style, {variant}, "
+        "glowing energy and particles, centered on a plain dark background, no text",
+        placeholder="vfx",
+        desc="이펙트 본체 — 선택한 등급마다 효과를 차등 생성",
+    ),
+    AssetSpec(
         "vfx_element", "속성 이펙트", "vfx", (512, 512),
         "game VFX effect sprite of a {variant} elemental magic burst, "
         "glowing energy particles, radiant {variant} attribute FX, {style}, "
@@ -526,7 +553,7 @@ def catalog_payload() -> dict:
         "genres": GENRES,
         "art_styles": ART_STYLES,
         "role_groups": ROLE_GROUPS,
-        "item_types": ITEM_TYPES,
+        "type_lists": TYPE_LISTS,
         "rarities": RARITY_KEYS,
         "image_models": IMAGE_MODELS,
         "assets": [

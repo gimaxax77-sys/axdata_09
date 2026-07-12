@@ -189,6 +189,7 @@ function renderRoles() {
   if (!sel) return;
   const subj = subjectDef(SUBJECT);
   const preset = subj ? subj.role_preset : "job";
+  const typeList = (CATALOG.type_lists || {})[preset];
   let html = "";
   if (preset === "job" && CATALOG.role_groups) {
     html = '<option value="">— 직업 선택 —</option>';
@@ -196,9 +197,9 @@ function renderRoles() {
       html += `<optgroup label="${group}">` +
         roles.map((r) => `<option value="${r}">${r}</option>`).join("") + "</optgroup>";
     }
-  } else if (preset === "item_types" && CATALOG.item_types) {
+  } else if (typeList) {
     html = '<option value="">— 종류 선택 —</option>' +
-      CATALOG.item_types.map((r) => `<option value="${r}">${r}</option>`).join("");
+      typeList.map((r) => `<option value="${r}">${r}</option>`).join("");
   }
   sel.innerHTML = html;
   sel.classList.toggle("hidden", !html);  // 프리셋 없는 대상은 드롭다운 숨김
@@ -560,7 +561,8 @@ function assetFileInfo(a, variantCount, opts) {
     if (a.key === "bgm") return { images: 0, files: 2, bytes: 1.7e6 };     // WAV+가이드
     return { images: 0, files: 1, bytes: 3e5 };
   }
-  const n = a.key === "item_art" ? Math.max(1, opts.rarityCount || 1)
+  const rarityAsset = a.key === "item_art" || a.key === "vfx_art";
+  const n = rarityAsset ? Math.max(1, opts.rarityCount || 1)
     : a.variable ? Math.min(variantCount, a.pool_max)
     : (a.fixed_count > 0 ? a.fixed_count : 1);
   let files = n;
