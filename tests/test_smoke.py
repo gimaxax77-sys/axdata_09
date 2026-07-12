@@ -72,6 +72,30 @@ def test_object_subject_has_no_bio_and_right_assets(settings):
     assert "character" not in cats  # 캐릭터 아트는 생성되지 않음
 
 
+def test_item_art_generates_per_selected_rarity(settings):
+    # 아이템 일러스트는 선택한 등급 수만큼 생성(등급이 변형 축)
+    req = GenerationRequest(subject="item", genre="fantasy", role="장검",
+                            assets=["item_art"], rarities=["일반", "레전드", "무아"])
+    res = pipeline.run_pipeline(req, settings, "job_item_rar")
+    arts = [a for a in res.assets if a.kind == "item_art"]
+    assert len(arts) == 3
+    assert {a.label.split("·")[-1].strip() for a in arts} == {"일반", "레전드", "무아"}
+
+
+def test_item_art_defaults_to_one_when_no_rarity(settings):
+    req = GenerationRequest(subject="item", genre="fantasy", role="방패", assets=["item_art"])
+    res = pipeline.run_pipeline(req, settings, "job_item_norar")
+    assert len([a for a in res.assets if a.kind == "item_art"]) == 1
+
+
+def test_item_types_and_rarities_in_payload():
+    p = cat.catalog_payload()
+    assert p["item_types"] == ["무기", "방어구", "악세사리", "소비", "재료"]
+    assert "일반" in p["rarities"] and "무아" in p["rarities"]
+    item_subj = next(s for s in p["subjects"] if s["key"] == "item")
+    assert item_subj["role_preset"] == "item_types" and item_subj["rarities"] is True
+
+
 @pytest.mark.parametrize("subject", ["environment", "vfx", "ui"])
 def test_object_subjects_no_bio(settings, subject):
     # 나머지 사물/디자인 대상도 캐릭터 기획 없이 해당 산출물만

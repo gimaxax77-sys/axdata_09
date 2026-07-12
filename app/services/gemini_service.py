@@ -99,6 +99,8 @@ def generate_asset(
     style_only: bool = False,
     transparent: bool = False,
     model: str = "",
+    variants_override: "list[str] | None" = None,
+    variant_styles: "dict | None" = None,
 ) -> list[ImageResult]:
     """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장.
 
@@ -107,7 +109,8 @@ def generate_asset(
     transparent: 컷아웃 에셋이면 배경 제거해 알파 PNG 로 저장.
     model: 이미지 모델 오버라이드(빈 값이면 서버 기본).
     """
-    variants = spec.resolve_variants(variant_count)
+    # variants_override: 등급(rarity)처럼 선택한 목록으로 변형을 대체(개수 무시).
+    variants = variants_override if variants_override else spec.resolve_variants(variant_count)
     multi = len(variants) > 1
     w, h = spec.size
     size = (max(64, int(w * scale)), max(64, int(h * scale)))
@@ -134,6 +137,9 @@ def generate_asset(
             genre=concept.genre,
             variant=variant,
         )
+        # 등급(rarity) 등 변형별 시각 스타일 힌트 주입
+        if variant_styles and variant in variant_styles:
+            prompt += f", {variant_styles[variant]}"
         # 장르(세계관/복장)를 프롬프트에 반영 — 무협인데 서양 갑옷 같은 문제 방지
         genre_hint = _GENRE_HINT.get(concept.genre, "")
         if genre_hint and spec.category in _GENRE_CATEGORIES:

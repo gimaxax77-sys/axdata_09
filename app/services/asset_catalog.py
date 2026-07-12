@@ -42,12 +42,19 @@ _SUPER_CATS = {sg["key"]: sg["cats"] for sg in SUPERGROUPS}
 # 제작 대상 (최상위) — '무엇을 만들지'. 캐릭터만 캐릭터 기획(이름·스탯·성격)을
 # 생성하고, 나머지(아이템·환경·특수효과·UI)는 사물/디자인 산출물만 만든다.
 # supers: 이 대상에서 노출할 상위 메뉴 키. concept: 캐릭터형 기획 생성 여부.
+# role_preset: 역할 드롭다운 소스(job=직업 목록 / item_types=아이템 종류 / 없음=자유입력만)
+# rarities: 등급 선택(체크박스) 노출 여부.
 SUBJECTS = [
-    {"key": "character", "label": "캐릭터", "concept": True, "supers": ["character", "set"]},
-    {"key": "item", "label": "아이템", "concept": False, "supers": ["item"]},
-    {"key": "environment", "label": "환경", "concept": False, "supers": ["environment"]},
-    {"key": "vfx", "label": "특수효과", "concept": False, "supers": ["vfx"]},
-    {"key": "ui", "label": "UI", "concept": False, "supers": ["ui"]},
+    {"key": "character", "label": "캐릭터", "concept": True, "supers": ["character", "set"],
+     "role_preset": "job", "rarities": False},
+    {"key": "item", "label": "아이템", "concept": False, "supers": ["item"],
+     "role_preset": "item_types", "rarities": True},
+    {"key": "environment", "label": "환경", "concept": False, "supers": ["environment"],
+     "role_preset": "", "rarities": False},
+    {"key": "vfx", "label": "특수효과", "concept": False, "supers": ["vfx"],
+     "role_preset": "", "rarities": False},
+    {"key": "ui", "label": "UI", "concept": False, "supers": ["ui"],
+     "role_preset": "", "rarities": False},
 ]
 _SUBJECT_BY_KEY = {s["key"]: s for s in SUBJECTS}
 
@@ -112,6 +119,22 @@ ART_STYLES = [
     "comic / ink",
 ]
 
+# 아이템 종류 (아이템 대상의 '장르 옆 선택박스' — 직업 드롭다운과 동일 위치)
+ITEM_TYPES = ["무기", "방어구", "악세사리", "소비", "재료"]
+
+# 아이템 등급 — 선택한 등급마다 1장씩 생성. style 은 이미지 프롬프트에 주입.
+RARITIES = [
+    {"key": "일반", "style": "common grade, plain ordinary materials, muted colors, no glow"},
+    {"key": "레어", "style": "rare grade, polished materials, subtle blue glow"},
+    {"key": "매직", "style": "magic grade, enchanted glowing runes, soft green-blue aura"},
+    {"key": "레전드", "style": "legendary grade, ornate golden details, radiant glow, embedded gemstones"},
+    {"key": "초월", "style": "transcendent grade, prismatic divine energy, brilliant halo, highly elaborate"},
+    {"key": "멸망", "style": "doom grade, dark corrupted crimson-and-black, ominous flames, menacing"},
+    {"key": "무아", "style": "ultimate void grade, pure white-gold cosmic aura, reality-warping ethereal glow"},
+]
+RARITY_KEYS = [r["key"] for r in RARITIES]
+RARITY_STYLE = {r["key"]: r["style"] for r in RARITIES}
+
 ALL_ENTITIES = frozenset(ENTITY_TYPES)
 
 # 동일 캐릭터로 보여야 하는 에셋(앵커 이미지를 레퍼런스로 사용)
@@ -124,7 +147,7 @@ _CHAR_REF_KEYS = frozenset({
 _CUTOUT_KEYS = frozenset({
     "portrait", "fullbody", "expressions", "poses", "turnaround",
     "pixel_sprite", "emblem", "emote", "companion",
-    "weapon_icons", "item_grid", "skill_icons", "rarity_frame",
+    "item_art", "weapon_icons", "item_grid", "skill_icons", "rarity_frame",
     "ui_icons", "ui_currency",
     "anim_idle", "anim_walk", "anim_attack",
     "vfx_element", "vfx_skill", "vfx_hit",
@@ -283,6 +306,13 @@ _SPECS: list[AssetSpec] = [
     ),
 
     # ── 아이템 / 장비 ─────────────────────────────────────────────
+    AssetSpec(
+        "item_art", "아이템 일러스트", "item", (768, 768),
+        "detailed game item icon of {name}, {visual}, {genre} style, {variant} grade, "
+        "single centered item on a plain neutral background, no text",
+        placeholder="emblem",
+        desc="아이템 본체 일러스트 (선택한 등급별로 1장씩)",
+    ),
     AssetSpec(
         "weapon_icons", "무기/방어구 아이콘", "item", (512, 512),
         "game item icon of the {variant} of {name}, {visual} theme, "
@@ -496,6 +526,8 @@ def catalog_payload() -> dict:
         "genres": GENRES,
         "art_styles": ART_STYLES,
         "role_groups": ROLE_GROUPS,
+        "item_types": ITEM_TYPES,
+        "rarities": RARITY_KEYS,
         "image_models": IMAGE_MODELS,
         "assets": [
             {

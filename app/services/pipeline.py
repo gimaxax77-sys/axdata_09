@@ -150,11 +150,18 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
             elif req.style_lock and not spec.character_ref:
                 use_ref, style_only = anchor, True
 
+        # 아이템 일러스트: 선택한 등급(rarity)마다 1장씩(등급이 변형 축).
+        rar_override = rar_styles = None
+        if spec.key == "item_art":
+            rar_override = [r for r in req.rarities if r in cat.RARITY_STYLE] or ["일반"]
+            rar_styles = cat.RARITY_STYLE
+
         results = gemini_service.generate_asset(
             spec, concept, job_dir, settings,
             scale=req.image_scale, variant_count=req.variant_count,
             reference=use_ref, style_only=style_only,
             transparent=req.transparent, model=req.image_model,
+            variants_override=rar_override, variant_styles=rar_styles,
         )
         for res in results:
             image_map.setdefault(spec.key, res.path)  # 첫 변형을 대표로

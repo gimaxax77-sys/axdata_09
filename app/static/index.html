@@ -136,10 +136,18 @@
                   <select name="genre" id="genre-select"></select>
                 </label>
                 <label class="fld" id="role-label">직업 / 역할
-                  <select id="role-preset" class="char-only"></select>
+                  <select id="role-preset"></select>
                 </label>
               </div>
               <input name="role" type="text" class="mt6" placeholder="직접 입력 가능 (예: 권사)" />
+
+              <!-- 아이템 등급 (아이템 대상 전용) -->
+              <div id="rarity-box" class="rarity-box hidden">
+                <div class="section-lbl">등급 <span class="hint">선택한 등급만 생성</span>
+                  <span class="select-actions"><a href="#" id="rar-all">전체</a><a href="#" id="rar-none">해제</a></span>
+                </div>
+                <div id="rarity-picker" class="rarity-picker"></div>
+              </div>
 
               <label class="fld">아트 스타일
                 <select id="style-preset"></select>
@@ -183,7 +191,7 @@
                 <legend>고급 (실 API 권장)
                   <span class="select-actions"><a href="#" id="adv-all">전체</a><a href="#" id="adv-none">해제</a></span>
                 </legend>
-                <label class="chk"><input type="checkbox" name="consistency" checked /> 캐릭터 일관성</label>
+                <label class="chk char-only"><input type="checkbox" name="consistency" checked /> 캐릭터 일관성</label>
                 <label class="chk"><input type="checkbox" name="style_lock" /> 스타일 락</label>
                 <label class="chk"><input type="checkbox" name="transparent" /> 투명 배경(PNG)</label>
                 <label class="chk"><input type="checkbox" name="sprite_sheet" /> 스프라이트 시트</label>

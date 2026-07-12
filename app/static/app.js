@@ -37,6 +37,7 @@ async function init() {
   renderAssetPicker();
   renderGenres();
   renderRoles();
+  renderRarities();
   renderArtStyles();
   renderModels();
   wireModeToggle();
@@ -74,6 +75,7 @@ function gatherConfig() {
     consistency: fd.get("consistency") !== null, style_lock: fd.get("style_lock") !== null,
     transparent: fd.get("transparent") !== null, sprite_sheet: fd.get("sprite_sheet") !== null,
     count: fd.get("count"), make_codex: fd.get("make_codex") !== null, roles: fd.get("roles") || "",
+    rarities: $$('#rarity-picker input[name="rarity"]:checked').map((c) => c.value),
     assets: $$('#asset-picker input[name="asset"]:checked').map((c) => c.value),
   };
 }
@@ -92,7 +94,13 @@ function applyConfig(cfg) {
     $$(".stab").forEach((x) => x.classList.toggle("on", x.dataset.s === SUBJECT));
   }
   applySubjectUI();
+  renderRoles();
+  renderRarities();
   renderAssetPicker();
+  if (Array.isArray(cfg.rarities) && cfg.rarities.length) {
+    const rs = new Set(cfg.rarities);
+    $$('#rarity-picker input[name="rarity"]').forEach((c) => (c.checked = rs.has(c.value)));
+  }
   const setV = (sel, v) => { const el = $(sel); if (el != null && v != null) el.value = v; };
   setV('input[name="name"]', cfg.name); setV('select[name="genre"]', cfg.genre);
   setV('input[name="role"]', cfg.role); setV('input[name="art_style"]', cfg.art_style);
@@ -174,18 +182,44 @@ function entityLabel(e) {
   return (sub && sub.label) || e || "";
 }
 
-// ── 직업 드롭다운 (optgroup) ─────────────────────────────
+// ── 역할/종류 드롭다운 (제작 대상별) ─────────────────────
 function renderRoles() {
   const sel = $("#role-preset");
   const input = $('input[name="role"]');
-  if (!sel || !CATALOG.role_groups) return;
-  let html = '<option value="">— 직업 선택 —</option>';
-  for (const [group, roles] of Object.entries(CATALOG.role_groups)) {
-    html += `<optgroup label="${group}">` +
-      roles.map((r) => `<option value="${r}">${r}</option>`).join("") + "</optgroup>";
+  if (!sel) return;
+  const subj = subjectDef(SUBJECT);
+  const preset = subj ? subj.role_preset : "job";
+  let html = "";
+  if (preset === "job" && CATALOG.role_groups) {
+    html = '<option value="">— 직업 선택 —</option>';
+    for (const [group, roles] of Object.entries(CATALOG.role_groups)) {
+      html += `<optgroup label="${group}">` +
+        roles.map((r) => `<option value="${r}">${r}</option>`).join("") + "</optgroup>";
+    }
+  } else if (preset === "item_types" && CATALOG.item_types) {
+    html = '<option value="">— 종류 선택 —</option>' +
+      CATALOG.item_types.map((r) => `<option value="${r}">${r}</option>`).join("");
   }
   sel.innerHTML = html;
-  sel.addEventListener("change", () => { if (sel.value && input) input.value = sel.value; });
+  sel.classList.toggle("hidden", !html);  // 프리셋 없는 대상은 드롭다운 숨김
+  // 선택 시 역할 입력칸을 채움(idempotent onchange)
+  sel.onchange = () => { if (sel.value && input) input.value = sel.value; };
+}
+
+// ── 아이템 등급 체크박스 (아이템 대상 전용) ───────────────
+function renderRarities() {
+  const box = $("#rarity-box");
+  const picker = $("#rarity-picker");
+  if (!box || !picker) return;
+  const subj = subjectDef(SUBJECT);
+  const show = !!(subj && subj.rarities) && (CATALOG.rarities || []).length;
+  box.classList.toggle("hidden", !show);
+  if (!show) return;
+  picker.innerHTML = CATALOG.rarities.map((r) => `
+    <label class="asset-chip">
+      <input type="checkbox" name="rarity" value="${r}" ${r === "일반" ? "checked" : ""} />
+      <span>${r}</span>
+    </label>`).join("");
 }
 
 // ── 생성 히스토리 (우측 상시) ────────────────────────────
@@ -277,6 +311,7 @@ function loadHistoryConfig(data) {
     role: c.role || req.role,
     art_style: c.art_style || req.art_style,
     keywords: req.keywords,
+    rarities: req.rarities,
     image_scale: scale,
     variant_count: req.variant_count != null ? String(req.variant_count) : undefined,
     image_model: req.image_model,
@@ -398,6 +433,8 @@ function setSubject(key) {
   SUBJECT = key;
   $$(".stab").forEach((x) => x.classList.toggle("on", x.dataset.s === SUBJECT));
   applySubjectUI();
+  renderRoles();
+  renderRarities();
   renderAssetPicker();
   computeEstimate();
 }
@@ -523,7 +560,8 @@ function assetFileInfo(a, variantCount, opts) {
     if (a.key === "bgm") return { images: 0, files: 2, bytes: 1.7e6 };     // WAV+가이드
     return { images: 0, files: 1, bytes: 3e5 };
   }
-  const n = a.variable ? Math.min(variantCount, a.pool_max)
+  const n = a.key === "item_art" ? Math.max(1, opts.rarityCount || 1)
+    : a.variable ? Math.min(variantCount, a.pool_max)
     : (a.fixed_count > 0 ? a.fixed_count : 1);
   let files = n;
   let bytes = n * imgBytes(a.size, opts.scale, opts.live);
@@ -573,7 +611,8 @@ function computeEstimate() {
     const variantCount = parseInt(fd.get("variant_count") || "5", 10);
     const scale = parseFloat(fd.get("image_scale") || "1.0");
     const spriteSheet = fd.get("sprite_sheet") !== null;
-    const opts = { scale, live: imgLive, spriteSheet };
+    const rarityCount = $$('#rarity-picker input[name="rarity"]:checked').length;
+    const opts = { scale, live: imgLive, spriteSheet, rarityCount };
     hasAssets = checked.length > 0;
     let im = 0, f = 2, b = 20000; // concept.json + result.json + 여유
     checked.forEach((k) => {
@@ -1138,6 +1177,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       entity_type: SUBJECT === "character" ? ENTITY : SUBJECT,
       name: fd.get("name") || "", genre: fd.get("genre"),
       role: fd.get("role") || "",
+      rarities: $$('#rarity-picker input[name="rarity"]:checked').map((c) => c.value),
       art_style: fd.get("art_style") || "semi-realistic digital painting",
       keywords: fd.get("keywords") || "", assets,
       image_scale: imageScale, variant_count: variantCount,
@@ -1182,6 +1222,11 @@ $("#gen-form").addEventListener("submit", async (e) => {
 $("#sel-all").addEventListener("click", (e) => { e.preventDefault(); setAll(true); computeEstimate(); });
 $("#sel-none").addEventListener("click", (e) => { e.preventDefault(); setAll(false); computeEstimate(); });
 $("#sel-default").addEventListener("click", (e) => { e.preventDefault(); setDefaults(); computeEstimate(); });
+
+// 등급 전체/해제
+function setRarities(state) { $$('#rarity-picker input[name="rarity"]').forEach((c) => (c.checked = state)); }
+$("#rar-all").addEventListener("click", (e) => { e.preventDefault(); setRarities(true); computeEstimate(); });
+$("#rar-none").addEventListener("click", (e) => { e.preventDefault(); setRarities(false); computeEstimate(); });
 
 // 카테고리(중분류)별 전체/해제 — summary 안이라 토글 전파를 막는다
 $("#asset-picker").addEventListener("click", (e) => {
