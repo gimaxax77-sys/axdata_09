@@ -132,6 +132,20 @@ TYPE_LISTS = {
 }
 ITEM_TYPES = TYPE_LISTS["item_types"]  # 하위호환
 
+# 아이템 종류 → 세부 종류(2단계 드롭다운). 종류를 고르면 이 목록이 아래에 나온다.
+ITEM_SUBTYPES = {
+    "무기": ["장검", "단검", "도끼", "창", "양손검", "대검", "둔기", "채찍", "낫",
+            "방패", "완드", "지팡이", "마법구", "마법서", "브로치", "건틀렛",
+            "권총", "장총", "장궁", "단궁", "석궁", "발리스타"],
+    "방어구": ["투구", "흉갑", "갑옷", "건틀릿", "각반", "부츠", "방패", "로브",
+             "망토", "견갑"],
+    "악세사리": ["반지", "목걸이", "귀걸이", "팔찌", "브로치", "벨트", "부적",
+              "문장", "훈장", "오브"],
+    "소비": ["포션", "엘릭서", "물약", "스크롤", "폭탄", "수류탄", "음식", "씨앗"],
+    "재료": ["광석", "원석", "보석", "가죽", "목재", "약초", "마정석", "뼈", "천",
+            "금속 주괴"],
+}
+
 # 등급 — 선택한 등급마다 1장씩. style 은 이미지 프롬프트에 주입(아이템/VFX 각각).
 RARITIES = [
     {"key": "일반", "item": "common grade, plain ordinary materials, muted colors, no glow",
@@ -554,6 +568,7 @@ def catalog_payload() -> dict:
         "art_styles": ART_STYLES,
         "role_groups": ROLE_GROUPS,
         "type_lists": TYPE_LISTS,
+        "item_subtypes": ITEM_SUBTYPES,
         "rarities": RARITY_KEYS,
         "image_models": IMAGE_MODELS,
         "assets": [

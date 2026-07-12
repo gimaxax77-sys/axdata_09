@@ -103,6 +103,9 @@ motifs; sci-fi = high-tech; cyberpunk = neon; steampunk = brass-and-gear; etc.).
 Keep "visual_core" in ENGLISH — it is reused to build image-generation prompts and
 must be a compact, concrete visual description (shapes, materials, colors, style),
 no camera or lighting. Do NOT invent a character bio.
+CRITICAL: the visual_core MUST precisely and unmistakably depict the EXACT type given
+in the brief (e.g. if the type is a longsword, describe a longsword specifically — its
+blade, hilt, guard — NOT a generic or different weapon). Keep the concept strong.
 
 Return ONLY a JSON object with EXACTLY these keys:
 {{

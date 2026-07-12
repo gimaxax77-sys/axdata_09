@@ -36,6 +36,13 @@ log = get_logger(__name__)
 # 이미지 안에 텍스트가 의도된 에셋(그 외에는 '글자 없음' 지시로 오타/워터마크 방지)
 _TEXT_ALLOWED = frozenset({"logo", "card_frame", "namecard", "banner"})
 
+# 캐릭터형이 아닌 사물/디자인 대상인지(정해진 컨셉을 강하게 유지시킴)
+_CHARACTER_ENTITIES = frozenset({"character", "monster", "npc"})
+
+
+def _is_object(concept) -> bool:
+    return getattr(concept, "entity_type", "character") not in _CHARACTER_ENTITIES
+
 # 장르별 세계관/복장 힌트 — 이미지 프롬프트에 주입해 장르가 실제 그림에 반영되게 함
 _GENRE_HINT = {
     "fantasy": "high fantasy setting, medieval fantasy attire and weapons",
@@ -157,6 +164,13 @@ def generate_asset(
         if spec.character_ref:
             prompt += (", a single character with exactly one head, "
                        "one body, no duplicated heads, no extra faces")
+        # 사물/디자인 대상: 정해진 컨셉(종류)을 강하게 유지 — 다른 물체로 바뀌지 않게
+        if _is_object(concept) and (concept.role or concept.name):
+            subj = concept.role or concept.name
+            prompt += (f". The subject MUST clearly and unmistakably be a {subj} — "
+                       f"exactly a {subj} and nothing else, a single {subj} as the sole "
+                       "subject, keep this concept strong and do not substitute a "
+                       "different type of object")
         if use_ref is not None:
             if style_only:
                 prompt = (

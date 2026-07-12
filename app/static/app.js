@@ -203,8 +203,26 @@ function renderRoles() {
   }
   sel.innerHTML = html;
   sel.classList.toggle("hidden", !html);  // 프리셋 없는 대상은 드롭다운 숨김
-  // 선택 시 역할 입력칸을 채움(idempotent onchange)
-  sel.onchange = () => { if (sel.value && input) input.value = sel.value; };
+  // 아이템: 종류 → 세부 종류(2단계). 그 외: 선택 시 역할 입력칸을 채움.
+  sel.onchange = () => {
+    if (SUBJECT === "item") { renderSubtypes(sel.value); }
+    else if (sel.value && input) { input.value = sel.value; }
+  };
+  if (SUBJECT !== "item") renderSubtypes("");  // 아이템 아닐 때 세부 드롭다운 숨김
+}
+
+// 아이템 세부 종류(무기 → 장검/단검/…) — 종류 선택 시 아래에 표시
+function renderSubtypes(typeVal) {
+  const box = $("#subtype-preset");
+  if (!box) return;
+  const subs = (CATALOG.item_subtypes || {})[typeVal] || [];
+  if (SUBJECT !== "item" || !subs.length) {
+    box.classList.add("hidden"); box.innerHTML = ""; return;
+  }
+  box.innerHTML = '<option value="">— 세부 종류 선택 —</option>' +
+    subs.map((s) => `<option value="${s}">${s}</option>`).join("");
+  box.classList.remove("hidden");
+  box.onchange = () => { const inp = $('input[name="role"]'); if (box.value && inp) inp.value = box.value; };
 }
 
 // ── 아이템 등급 체크박스 (아이템 대상 전용) ───────────────
