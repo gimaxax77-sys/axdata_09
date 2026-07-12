@@ -46,26 +46,36 @@ def _slug_folder(text: str) -> str:
 
 def _compose_folder(req: GenerationRequest, concept: EntityConcept,
                     seed_id: str, settings: Settings) -> str:
-    """자동 저장 폴더명: 장르_직업_캐릭명_날짜. 캐릭명은 자동작명(concept)까지 반영.
+    """자동 저장 경로: 대분류/중분류/장르_이름_날짜.
 
-    seed_id 에서 타임스탬프를 재사용하고, 같은 이름이 있으면 _2, _3 로 유일화한다.
+    - 대분류: 캐릭터=엔티티(캐릭터/몬스터/NPC), 사물=제작 대상(아이템/환경/…).
+    - 중분류: 캐릭터=직업, 사물=종류(무기/던전/…). 없으면 '기타'.
+    seed_id 에서 타임스탬프를 재사용하고, 같은 경로면 _2, _3 로 유일화한다.
     """
     m = re.search(r"(\d{8}-\d{6})", seed_id or "")
     ts = m.group(1) if m else datetime.now().strftime("%Y%m%d-%H%M%S")
+    subject = getattr(req, "subject", "character") or "character"
+    if subject == "character":
+        top = cat.ENTITY_TYPES.get(concept.entity_type, "캐릭터")
+        mid = req.role or concept.role
+    else:
+        top = cat.subject_label(subject)
+        mid = getattr(req, "type_group", "") or req.role
+    top = _slug_folder(top) or "기타"
+    mid = _slug_folder(mid) or "기타"
     genre = _slug_folder(cat.GENRES.get(req.genre, req.genre))
-    role = _slug_folder(req.role or concept.role)
     name = _slug_folder(concept.name or req.name)
-    # 중복 제거(사물 대상은 이름=유형이 같을 수 있음), 순서 유지
+    # basename: 장르_이름_날짜 (중복 제거, 순서 유지)
     parts, seen = [], set()
-    for p in (genre, role, name):
+    for p in (genre, name):
         if p and p not in seen:
             parts.append(p); seen.add(p)
     base = "_".join(parts + [ts]) if parts else ts
-    folder, n = base, 2
-    while (settings.output_path / folder).exists():
-        folder = f"{base}_{n}"
+    rel, n = f"{top}/{mid}/{base}", 2
+    while (settings.output_path / rel).exists():
+        rel = f"{top}/{mid}/{base}_{n}"
         n += 1
-    return folder
+    return rel
 
 
 def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> GenerationResult:

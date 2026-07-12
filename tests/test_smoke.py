@@ -307,8 +307,18 @@ def test_pipeline_demo_generates_assets(settings):
     assert "portrait" in kinds
     assert "sheet_png" in kinds
     assert res.concept.name  # 기획서 생성됨
-    # 폴더명은 장르_직업_캐릭명_날짜 로 재구성됨
-    assert res.job_id.startswith("판타지_기사_테스트영웅_")
+    # 저장 경로는 대분류(캐릭터)/중분류(직업)/장르_이름_날짜 로 재구성됨
+    assert res.job_id.startswith("캐릭터/기사/")
+    assert "판타지_테스트영웅_" in res.job_id
+    assert (settings.output_path / res.job_id / "result.json").exists()
+
+
+def test_object_folder_nested_by_subject_and_type(settings):
+    # 사물 대상: 대분류(아이템)/중분류(종류)/… 로 저장
+    req = GenerationRequest(subject="item", genre="fantasy", role="장검",
+                            type_group="무기", assets=["item_art"], rarities=["일반"])
+    res = pipeline.run_pipeline(req, settings, "seed_20260711-160000")
+    assert res.job_id.startswith("아이템/무기/")
     assert (settings.output_path / res.job_id / "result.json").exists()
 
 
@@ -503,7 +513,7 @@ def test_import_run_generates_independent_jobs(settings):
     # 각 행은 장르_직업_캐릭명_날짜 로 재구성된 독립 잡 폴더로 생성됨
     for res in results:
         assert (settings.output_path / res.job_id / "result.json").exists()
-        assert "/" not in res.job_id  # 최상위(중첩 아님)
+        assert res.job_id.count("/") == 2  # 대분류/중분류/폴더
 
 
 # ── 이미지 편집 ───────────────────────────────────────────

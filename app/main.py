@@ -37,6 +37,12 @@ def _safe_path(root: Path, *parts: str) -> Path:
     return full
 
 
+def _safe_job(job_id: str) -> str:
+    """중첩 job 경로(대분류/중분류/폴더)를 output 하위로 검증하고 상대경로 반환."""
+    full = _safe_path(settings.output_path, job_id)
+    return full.relative_to(settings.output_path.resolve()).as_posix()
+
+
 def _require_local(request: Request) -> None:
     """PC 로컬(루프백)에서만 허용 — LAN(0.0.0.0) 노출 시 제어 엔드포인트 보호."""
     host = request.client.host if request.client else ""
@@ -250,10 +256,10 @@ def generate_batch(req: BatchRequest) -> BatchResult:
     return result
 
 
-@app.post("/api/regenerate/{job_id}")
+@app.post("/api/regenerate/{job_id:path}")
 def regenerate(job_id: str, req: RegenerateRequest) -> dict:
     """기존 잡의 특정 이미지 에셋 하나만 다시 생성."""
-    safe = Path(job_id).name
+    safe = _safe_job(job_id)
     before = usage.snapshot(settings)["total_usd"]
     try:
         assets = pipeline.regenerate_asset(req, settings, safe)
@@ -267,10 +273,10 @@ def regenerate(job_id: str, req: RegenerateRequest) -> dict:
     return {"job_id": safe, "assets": [a.model_dump() for a in assets]}
 
 
-@app.post("/api/repack/{job_id}")
+@app.post("/api/repack/{job_id:path}")
 def repack_asset(job_id: str, req: RepackRequest) -> dict:
     """여러 변형 중 선택한 것만 남기고 시트를 재패킹."""
-    safe = Path(job_id).name
+    safe = _safe_job(job_id)
     try:
         out = pipeline.repack_variants(req, settings, safe)
     except (FileNotFoundError, ValueError) as exc:
@@ -281,12 +287,12 @@ def repack_asset(job_id: str, req: RepackRequest) -> dict:
     return {"job_id": safe, **out}
 
 
-@app.post("/api/edit/{job_id}")
+@app.post("/api/edit/{job_id:path}")
 def edit_asset(job_id: str, req: EditRequest) -> dict:
     """기존 잡의 이미지 파일 하나를 편집(크롭/배경/보정)해 제자리 저장."""
     from .services import editor
 
-    safe_job = Path(job_id).name
+    safe_job = _safe_job(job_id)
     fname = Path(req.file).name  # 경로 탐색 방지
     target = _safe_path(settings.output_path, safe_job, fname)
     if not target.is_file() or target.suffix.lower() != ".png":
@@ -398,6 +404,7 @@ def _history_item(d: Path) -> dict | None:
         data = json.loads(rj.read_text(encoding="utf-8"))
     except Exception:
         return None
+    rel = d.relative_to(settings.output_path).as_posix()  # 중첩 경로(대분류/중분류/폴더)
     is_batch = "entries" in data or "batch_id" in data
     if is_batch:
         name = f"{data.get('entity_type', '')} 도감 ({len(data.get('entries', []))}종)"
@@ -416,9 +423,9 @@ def _history_item(d: Path) -> dict | None:
             thumb = next((a["path"] for a in data.get("assets", [])
                           if a.get("kind") == "sheet_png"), "")
     item = {
-        "id": d.name, "kind": "batch" if is_batch else "single",
+        "id": rel, "kind": "batch" if is_batch else "single",
         "name": name, "entity": entity, "thumb": thumb,
-        "result_url": f"/files/{d.name}/result.json",
+        "result_url": f"/files/{rel}/result.json",
         "mtime": mtime,
     }
     _HISTORY_CACHE[key] = (mtime, item)
@@ -433,13 +440,12 @@ def history(limit: int = 60) -> list[dict]:
     if not root.is_dir():
         return items
     seen: set[str] = set()
-    for d in root.iterdir():
-        if not d.is_dir():
-            continue
-        item = _history_item(d)
+    # 중첩 폴더(대분류/중분류/잡) 어디에 있든 result.json 을 모두 스캔
+    for rj in root.rglob("result.json"):
+        item = _history_item(rj.parent)
         if item is None:
             continue
-        seen.add(str(d / "result.json"))
+        seen.add(str(rj))
         items.append(item)
     # 삭제된 폴더의 캐시 엔트리 정리
     for stale in [k for k in _HISTORY_CACHE if k not in seen]:
@@ -448,14 +454,14 @@ def history(limit: int = 60) -> list[dict]:
     return items[:limit]
 
 
-@app.post("/api/open/{job_id}")
+@app.post("/api/open/{job_id:path}")
 def open_folder(job_id: str, request: Request) -> dict:
     """로컬 파일 탐색기에서 해당 결과 폴더 열기 (로컬 실행 전용)."""
     _require_local(request)
     import subprocess
     import sys
 
-    folder = _safe_path(settings.output_path, Path(job_id).name)
+    folder = _safe_path(settings.output_path, job_id)
     if not folder.is_dir():
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
     try:
@@ -471,20 +477,19 @@ def open_folder(job_id: str, request: Request) -> dict:
     return {"opened": str(folder)}
 
 
-@app.delete("/api/history/{job_id}")
+@app.delete("/api/history/{job_id:path}")
 def delete_history(job_id: str) -> dict:
     """히스토리 항목(폴더) 삭제."""
     import shutil
 
-    safe = Path(job_id).name
-    folder = _safe_path(settings.output_path, safe)
+    folder = _safe_path(settings.output_path, job_id)
     if not folder.is_dir():
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
     shutil.rmtree(folder, ignore_errors=True)
-    return {"deleted": safe}
+    return {"deleted": _safe_job(job_id)}
 
 
-@app.get("/api/zip/{job_id}")
+@app.get("/api/zip/{job_id:path}")
 def download_zip(job_id: str):
     """잡/배치 폴더 전체를 ZIP 으로 묶어 다운로드."""
     import io
@@ -492,10 +497,10 @@ def download_zip(job_id: str):
 
     from fastapi.responses import StreamingResponse
 
-    safe = Path(job_id).name  # 경로 탐색 방지
-    folder = _safe_path(settings.output_path, safe)
+    folder = _safe_path(settings.output_path, job_id)  # 경로 탐색 방지
     if not folder.is_dir():
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
+    safe = folder.name  # ZIP 파일명(마지막 폴더명)
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -513,11 +518,11 @@ def download_zip(job_id: str):
     )
 
 
-@app.get("/api/download/{job_id}/{filename}")
+@app.get("/api/download/{job_id:path}/{filename}")
 def download(job_id: str, filename: str) -> FileResponse:
     """산출물 다운로드 (경로 탐색 방지)."""
     safe = Path(filename).name
-    path = _safe_path(settings.output_path, Path(job_id).name, safe)
+    path = _safe_path(settings.output_path, job_id, safe)
     if not path.exists():
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     return FileResponse(path, filename=safe)

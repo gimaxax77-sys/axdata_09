@@ -66,6 +66,12 @@ def subject_categories(subject: str) -> list[str]:
         return list(CATEGORIES)
     return [c for sg in subj["supers"] for c in _SUPER_CATS[sg]]
 
+
+def subject_label(subject: str) -> str:
+    """제작 대상 라벨(폴더 대분류 등에 사용)."""
+    subj = _SUBJECT_BY_KEY.get(subject)
+    return subj["label"] if subj else "캐릭터"
+
 # 장르 (UI 드롭다운). 실제 API 는 모든 장르를 프롬프트에 반영한다.
 GENRES = {
     "fantasy": "판타지",

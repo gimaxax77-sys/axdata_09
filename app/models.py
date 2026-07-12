@@ -16,6 +16,7 @@ class GenBase(BaseModel):
     art_style: str = Field("semi-realistic digital painting", description="아트 스타일")
     keywords: str = Field("", description="추가 키워드(쉼표)")
     rarities: list[str] = Field(default_factory=list, description="아이템 등급(선택한 것만 생성)")
+    type_group: str = Field("", description="종류(중분류) — 저장 폴더 분류용")
     assets: list[str] = Field(default_factory=list, description="생성할 에셋 키")
     image_scale: float = Field(1.0, ge=0.5, le=2.0, description="해상도 배율")
     variant_count: int = Field(5, ge=1, le=10, description="가변 변형 장수")

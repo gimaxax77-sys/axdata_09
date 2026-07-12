@@ -1,6 +1,8 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const FILES = "/files/";
+// 중첩 job 경로(대분류/중분류/폴더)를 URL 로 — 세그먼트만 인코딩하고 '/'는 유지
+const jobPath = (id) => String(id || "").split("/").map(encodeURIComponent).join("/");
 
 let CATALOG = null;
 let STATUS = null; // /api/status (모드 + 가격)
@@ -75,6 +77,7 @@ function gatherConfig() {
     consistency: fd.get("consistency") !== null, style_lock: fd.get("style_lock") !== null,
     transparent: fd.get("transparent") !== null, sprite_sheet: fd.get("sprite_sheet") !== null,
     count: fd.get("count"), make_codex: fd.get("make_codex") !== null, roles: fd.get("roles") || "",
+    type_group: SUBJECT === "character" ? "" : ($("#role-preset").value || ""),
     rarities: $$('#rarity-picker input[name="rarity"]:checked').map((c) => c.value),
     assets: $$('#asset-picker input[name="asset"]:checked').map((c) => c.value),
   };
@@ -96,6 +99,11 @@ function applyConfig(cfg) {
   applySubjectUI();
   renderRoles();
   renderRarities();
+  // 종류(중분류) 복원 — 아이템이면 세부 목록까지 채움
+  if (cfg.type_group) {
+    const rp = $("#role-preset");
+    if (rp) { rp.value = cfg.type_group; if (SUBJECT === "item") renderSubtypes(cfg.type_group); }
+  }
   renderAssetPicker();
   if (Array.isArray(cfg.rarities) && cfg.rarities.length) {
     const rs = new Set(cfg.rarities);
@@ -258,7 +266,7 @@ async function renderHistoryList() {
       </div>
       <div class="hist-actions">
         <a href="#" class="hist-open" title="폴더 열기">📂</a>
-        <a href="/api/zip/${it.id}" download title="ZIP 다운로드">📦</a>
+        <a href="/api/zip/${jobPath(it.id)}" download title="ZIP 다운로드">📦</a>
         <a href="#" class="hist-del" title="삭제">🗑</a>
       </div>
     </div>`).join("");
@@ -285,14 +293,14 @@ async function renderHistoryList() {
       e.preventDefault();
       const id = a.closest(".hist-card").dataset.id;
       if (!confirm("이 생성 기록을 삭제할까요? (폴더 삭제)")) return;
-      await fetch("/api/history/" + encodeURIComponent(id), { method: "DELETE" });
+      await fetch("/api/history/" + jobPath(id), { method: "DELETE" });
       renderHistoryList();
     });
   });
 }
 async function openFolder(id) {
   try {
-    const r = await fetch("/api/open/" + encodeURIComponent(id), { method: "POST" });
+    const r = await fetch("/api/open/" + jobPath(id), { method: "POST" });
     if (!r.ok) throw new Error();
   } catch (e) { alert("폴더 열기는 로컬 실행 시에만 동작합니다."); }
 }
@@ -331,6 +339,7 @@ function loadHistoryConfig(data) {
     art_style: c.art_style || req.art_style,
     keywords: req.keywords,
     rarities: req.rarities,
+    type_group: req.type_group,
     image_scale: scale,
     variant_count: req.variant_count != null ? String(req.variant_count) : undefined,
     image_model: req.image_model,
@@ -888,7 +897,7 @@ async function applyEdit() {
   const btn = $("#edit-apply");
   btn.disabled = true; btn.textContent = "적용 중…";
   try {
-    const r = await fetch("/api/edit/" + encodeURIComponent(CURRENT_JOB_ID), {
+    const r = await fetch("/api/edit/" + jobPath(CURRENT_JOB_ID), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -964,7 +973,7 @@ function wireCompare() {
     const btn = $("#compare-apply");
     btn.disabled = true; btn.textContent = "재패킹 중…";
     try {
-      const r = await fetch("/api/repack/" + encodeURIComponent(CURRENT_JOB_ID), {
+      const r = await fetch("/api/repack/" + jobPath(CURRENT_JOB_ID), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ asset_key: COMPARE.kind, keep }),
       });
@@ -1110,7 +1119,7 @@ function renderImportResults(results) {
           <span class="hint sm">${d.assets.filter((a) => a.is_image).length}장 · ${d.concept.role || ""}</span>
           <div class="irc-actions">
             <button type="button" class="link-btn imp-view" data-url="${FILES}${d.job_id}/result.json">열기</button>
-            <a href="/api/zip/${d.job_id}" download>📦</a>
+            <a href="/api/zip/${jobPath(d.job_id)}" download>📦</a>
           </div>
         </div>
       </div>`;
@@ -1197,6 +1206,7 @@ $("#gen-form").addEventListener("submit", async (e) => {
       entity_type: SUBJECT === "character" ? ENTITY : SUBJECT,
       name: fd.get("name") || "", genre: fd.get("genre"),
       role: fd.get("role") || "",
+      type_group: SUBJECT === "character" ? "" : ($("#role-preset").value || fd.get("role") || ""),
       rarities: $$('#rarity-picker input[name="rarity"]:checked').map((c) => c.value),
       art_style: fd.get("art_style") || "semi-realistic digital painting",
       keywords: fd.get("keywords") || "", assets,
@@ -1311,7 +1321,7 @@ $("#result").addEventListener("click", async (e) => {
   btn.disabled = true;
   btn.textContent = "…";
   try {
-    const res = await fetch("/api/regenerate/" + encodeURIComponent(CURRENT_JOB_ID), {
+    const res = await fetch("/api/regenerate/" + jobPath(CURRENT_JOB_ID), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -1429,7 +1439,7 @@ function renderResult(data) {
 
   $("#result").innerHTML = `
     ${warnHtml}
-    <div class="dl-row"><a class="zip-btn" href="/api/zip/${data.job_id}" download>📦 전체 ZIP 다운로드</a></div>
+    <div class="dl-row"><a class="zip-btn" href="/api/zip/${jobPath(data.job_id)}" download>📦 전체 ZIP 다운로드</a></div>
     <div class="char-head">
       ${portrait ? `<img src="${FILES}${portrait.path}" alt="${c.name}"/>` : ""}
       <div>
@@ -1523,7 +1533,7 @@ function renderBatch(data) {
 
   $("#result").innerHTML = `
     ${warnHtml}
-    <div class="dl-row"><a class="zip-btn" href="/api/zip/${data.batch_id}" download>📦 도감 전체 ZIP 다운로드</a></div>
+    <div class="dl-row"><a class="zip-btn" href="/api/zip/${jobPath(data.batch_id)}" download>📦 도감 전체 ZIP 다운로드</a></div>
     ${codexBlock}
     <div><p class="section-title">개체 ${data.entries.length}종</p>
       <div class="entries">${entries}</div>
