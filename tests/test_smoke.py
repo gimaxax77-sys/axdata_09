@@ -72,6 +72,49 @@ def test_object_subject_has_no_bio_and_right_assets(settings):
     assert "character" not in cats  # 캐릭터 아트는 생성되지 않음
 
 
+@pytest.mark.parametrize("subject", ["environment", "vfx", "ui"])
+def test_object_subjects_no_bio(settings, subject):
+    # 나머지 사물/디자인 대상도 캐릭터 기획 없이 해당 산출물만
+    req = GenerationRequest(subject=subject, genre="fantasy", role="테스트")
+    res = pipeline.run_pipeline(req, settings, f"job_{subject}")
+    assert res.concept.stats == [] and res.concept.personality == ""
+    assert res.concept.entity_type == subject
+    assert res.assets  # 산출물이 생성됨
+
+
+def test_pipeline_animation_makes_sheet_and_gif(settings):
+    # 대기 애니메이션은 프레임 + 스트립 시트 + GIF 를 자동 생성
+    req = GenerationRequest(entity_type="character", name="애니테스트",
+                            assets=["anim_idle"], variant_count=3)
+    res = pipeline.run_pipeline(req, settings, "job_anim")
+    kinds = {a.kind for a in res.assets}
+    assert "anim_idle_sheet" in kinds and "anim_idle_gif" in kinds
+    gif = next(a for a in res.assets if a.kind == "anim_idle_gif")
+    assert (settings.output_path / gif.path).exists()
+
+
+def test_invalid_subject_rejected():
+    # subject 는 허용값 5종만 (잘못된 값은 조용히 캐릭터로 처리되지 않음)
+    with pytest.raises(Exception):
+        GenerationRequest(subject="bogus", genre="fantasy")
+
+
+def test_require_local_blocks_non_loopback():
+    # 로컬 전용 제어 엔드포인트는 루프백이 아니면 403
+    from fastapi.testclient import TestClient
+    from app.main import app
+    r = TestClient(app).post("/api/open/anything")
+    assert r.status_code == 403
+
+
+def test_download_missing_returns_404():
+    # 없는 잡/파일 다운로드는 404 (경로 방어 _safe_path 경유)
+    from fastapi.testclient import TestClient
+    from app.main import app
+    r = TestClient(app).get("/api/download/does-not-exist/none.png")
+    assert r.status_code == 404
+
+
 def test_vfx_and_bgm_in_catalog():
     payload = cat.catalog_payload()
     keys = {a["key"] for a in payload["assets"]}

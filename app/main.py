@@ -323,6 +323,8 @@ async def import_preview(file: UploadFile = File(...)) -> dict:
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="빈 파일입니다.")
+    if len(content) > 5 * 1024 * 1024:  # 5MB 상한 (표는 최대 50행)
+        raise HTTPException(status_code=400, detail="파일이 너무 큽니다(최대 5MB).")
     try:
         rows = importer.parse_upload(file.filename or "", content)
     except RuntimeError as exc:
@@ -407,6 +409,9 @@ def _history_item(d: Path) -> dict | None:
         entity = c.get("entity_type", "")
         thumb = next((a["path"] for a in data.get("assets", [])
                       if a.get("is_image") and a.get("category") == "character"), "")
+        if not thumb:  # 사물/디자인 대상: 캐릭터 아트가 없으니 첫 이미지 산출물
+            thumb = next((a["path"] for a in data.get("assets", [])
+                          if a.get("is_image") and a.get("kind") not in ("sheet_png", "video")), "")
         if not thumb:
             thumb = next((a["path"] for a in data.get("assets", [])
                           if a.get("kind") == "sheet_png"), "")
@@ -450,9 +455,8 @@ def open_folder(job_id: str, request: Request) -> dict:
     import subprocess
     import sys
 
-    safe = Path(job_id).name
-    folder = (settings.output_path / safe).resolve()
-    if not str(folder).startswith(str(settings.output_path.resolve())) or not folder.is_dir():
+    folder = _safe_path(settings.output_path, Path(job_id).name)
+    if not folder.is_dir():
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
     try:
         if sys.platform.startswith("win"):
@@ -473,8 +477,8 @@ def delete_history(job_id: str) -> dict:
     import shutil
 
     safe = Path(job_id).name
-    folder = (settings.output_path / safe).resolve()
-    if not str(folder).startswith(str(settings.output_path.resolve())) or not folder.is_dir():
+    folder = _safe_path(settings.output_path, safe)
+    if not folder.is_dir():
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
     shutil.rmtree(folder, ignore_errors=True)
     return {"deleted": safe}
@@ -489,8 +493,8 @@ def download_zip(job_id: str):
     from fastapi.responses import StreamingResponse
 
     safe = Path(job_id).name  # 경로 탐색 방지
-    folder = (settings.output_path / safe).resolve()
-    if not str(folder).startswith(str(settings.output_path.resolve())) or not folder.is_dir():
+    folder = _safe_path(settings.output_path, safe)
+    if not folder.is_dir():
         raise HTTPException(status_code=404, detail="폴더를 찾을 수 없습니다.")
 
     buf = io.BytesIO()
@@ -513,8 +517,8 @@ def download_zip(job_id: str):
 def download(job_id: str, filename: str) -> FileResponse:
     """산출물 다운로드 (경로 탐색 방지)."""
     safe = Path(filename).name
-    path = (settings.output_path / job_id / safe).resolve()
-    if not str(path).startswith(str(settings.output_path.resolve())) or not path.exists():
+    path = _safe_path(settings.output_path, Path(job_id).name, safe)
+    if not path.exists():
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     return FileResponse(path, filename=safe)
 

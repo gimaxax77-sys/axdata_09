@@ -168,7 +168,10 @@ function wirePathSettings() {
 }
 
 function entityLabel(e) {
-  return (CATALOG.entity_types && CATALOG.entity_types[e]) || e || "";
+  if (CATALOG.entity_types && CATALOG.entity_types[e]) return CATALOG.entity_types[e];
+  // 사물/디자인 대상은 entity_type 에 subject 키가 저장됨 → 한글 라벨로
+  const sub = (CATALOG.subjects || []).find((s) => s.key === e);
+  return (sub && sub.label) || e || "";
 }
 
 // ── 직업 드롭다운 (optgroup) ─────────────────────────────
@@ -456,8 +459,10 @@ function renderAssetPicker() {
   const subj = subjectDef(SUBJECT);
   const cats = new Set(subj ? subj.cats : Object.keys(CATALOG.categories));
   const defaults = new Set(subj ? subj.default_keys : ["fullbody"]);
+  // 사물/디자인 대상은 엔티티 개념이 없으므로 캐릭터 기준으로 필터(백엔드와 동일).
+  const ent = SUBJECT === "character" ? ENTITY : "character";
   const scoped = CATALOG.assets.filter(
-    (a) => a.entities.includes(ENTITY) && cats.has(a.category));
+    (a) => a.entities.includes(ent) && cats.has(a.category));
   const supers = groupBySuper(scoped);
 
   $("#asset-picker").innerHTML = supers.map((sg, idx) => {

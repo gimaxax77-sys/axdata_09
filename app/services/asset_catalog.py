@@ -59,17 +59,6 @@ def subject_categories(subject: str) -> list[str]:
         return list(CATEGORIES)
     return [c for sg in subj["supers"] for c in _SUPER_CATS[sg]]
 
-
-def subject_label(subject: str) -> str:
-    subj = _SUBJECT_BY_KEY.get(subject)
-    return subj["label"] if subj else CATEGORIES.get(subject, "캐릭터")
-
-
-def is_concept_subject(subject: str) -> bool:
-    """캐릭터형 기획(스탯·성격·배경)을 만드는 대상인지."""
-    subj = _SUBJECT_BY_KEY.get(subject)
-    return bool(subj["concept"]) if subj else True
-
 # 장르 (UI 드롭다운). 실제 API 는 모든 장르를 프롬프트에 반영한다.
 GENRES = {
     "fantasy": "판타지",

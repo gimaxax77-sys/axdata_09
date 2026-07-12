@@ -1,13 +1,16 @@
 """Pydantic 스키마 — API 요청/응답 및 내부 데이터 모델."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
 class GenBase(BaseModel):
     """단일/일괄 생성 공통 옵션."""
 
-    subject: str = Field("character", description="제작 대상: character | item | environment | vfx | ui")
+    subject: Literal["character", "item", "environment", "vfx", "ui"] = Field(
+        "character", description="제작 대상")
     entity_type: str = Field("character", description="character | monster | npc (캐릭터 대상일 때만)")
     genre: str = Field("fantasy", description="장르")
     art_style: str = Field("semi-realistic digital painting", description="아트 스타일")

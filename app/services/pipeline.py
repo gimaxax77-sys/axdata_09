@@ -501,7 +501,7 @@ def run_batch(req: BatchRequest, settings: Settings, batch_id: str) -> BatchResu
         else:
             name = ""  # 실제 GPT 가 고유하게 작명
         return GenerationRequest(
-            entity_type=entity, name=name, genre=req.genre, role=role,
+            subject=req.subject, entity_type=entity, name=name, genre=req.genre, role=role,
             art_style=req.art_style, keywords=req.keywords, assets=list(req.assets),
             image_scale=req.image_scale, variant_count=req.variant_count,
             consistency=req.consistency, transparent=req.transparent,
