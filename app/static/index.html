@@ -106,7 +106,10 @@
           <details class="grp" open>
             <summary>🧩 기본 정보</summary>
             <div class="grp-body">
-              <div class="entity-tabs" id="entity-tabs"></div>
+              <div class="subject-tabs" id="subject-tabs"></div>
+              <div id="entity-sub" class="char-only">
+                <div class="entity-tabs" id="entity-tabs"></div>
+              </div>
 
               <div id="single-fields">
                 <label class="fld">이름 <span class="hint">비우면 자동</span>
@@ -133,7 +136,7 @@
                   <select name="genre" id="genre-select"></select>
                 </label>
                 <label class="fld" id="role-label">직업 / 역할
-                  <select id="role-preset"></select>
+                  <select id="role-preset" class="char-only"></select>
                 </label>
               </div>
               <input name="role" type="text" class="mt6" placeholder="직접 입력 가능 (예: 권사)" />

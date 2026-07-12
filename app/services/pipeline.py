@@ -55,7 +55,11 @@ def _compose_folder(req: GenerationRequest, concept: EntityConcept,
     genre = _slug_folder(cat.GENRES.get(req.genre, req.genre))
     role = _slug_folder(req.role or concept.role)
     name = _slug_folder(concept.name or req.name)
-    parts = [p for p in (genre, role, name) if p]
+    # 중복 제거(사물 대상은 이름=유형이 같을 수 있음), 순서 유지
+    parts, seen = [], set()
+    for p in (genre, role, name):
+        if p and p not in seen:
+            parts.append(p); seen.add(p)
     base = "_".join(parts + [ts]) if parts else ts
     folder, n = base, 2
     while (settings.output_path / folder).exists():
@@ -65,6 +69,7 @@ def _compose_folder(req: GenerationRequest, concept: EntityConcept,
 
 
 def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> GenerationResult:
+    subject = getattr(req, "subject", "character") or "character"
     entity = req.entity_type if req.entity_type in cat.ENTITY_TYPES else "character"
     warnings: list[str] = []
     assets: list[GeneratedAsset] = []
@@ -72,9 +77,9 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
     def rel(p: Path) -> str:
         return p.relative_to(settings.output_path).as_posix()
 
-    # 선택 에셋 정규화 (엔티티에 유효한 것만, 기본값 폴백)
+    # 선택 에셋 정규화 (엔티티에 유효한 것만, 제작 대상 기본값 폴백)
     valid = {s.key for s in cat.specs_for_entity(entity)}
-    selected = [k for k in req.assets if k in valid] or cat.default_keys(entity)
+    selected = [k for k in req.assets if k in valid] or cat.default_keys_for(subject, entity)
 
     # 진행률: 기획(1) + 이미지 에셋(N) + 시트(0/1) + 영상(0/1)
     pid = req.progress_id

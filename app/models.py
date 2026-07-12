@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 class GenBase(BaseModel):
     """단일/일괄 생성 공통 옵션."""
 
-    entity_type: str = Field("character", description="character | monster | npc")
+    subject: str = Field("character", description="제작 대상: character | item | environment | vfx | ui")
+    entity_type: str = Field("character", description="character | monster | npc (캐릭터 대상일 때만)")
     genre: str = Field("fantasy", description="장르")
     art_style: str = Field("semi-realistic digital painting", description="아트 스타일")
     keywords: str = Field("", description="추가 키워드(쉼표)")
@@ -47,13 +48,13 @@ class EntityConcept(BaseModel):
     entity_type: str = "character"
     name: str
     name_en: str = ""  # 영문/로마자 이름 (한글 메인 + 영어 서브)
-    title: str  # 이명/칭호/종
-    genre: str
-    role: str  # 직업/종족/유형
-    tagline: str  # 한 줄 소개
-    appearance: str
-    personality: str  # 몬스터=행동 양식, NPC=성향
-    backstory: str  # 몬스터=서식지/전승, NPC=배경
+    title: str = ""  # 이명/칭호/종
+    genre: str = ""
+    role: str = ""  # 직업/종족/유형
+    tagline: str = ""  # 한 줄 소개
+    appearance: str = ""
+    personality: str = ""  # 몬스터=행동 양식, NPC=성향 (사물 대상은 비움)
+    backstory: str = ""  # 몬스터=서식지/전승, NPC=배경 (사물 대상은 비움)
     abilities: list[str] = Field(default_factory=list)  # 몬스터=공격 패턴
     stats: list[Stat] = Field(default_factory=list)
     color_palette: list[str] = Field(default_factory=list)  # hex codes

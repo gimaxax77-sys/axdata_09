@@ -139,6 +139,16 @@ a { color: var(--accent2b); }
 .preset-bar .mini-btn, .preset-bar .icon-btn { flex-shrink: 0; margin-top: 0; height: 32px; }
 .preset-bar .icon-btn { width: 32px; }
 
+/* 제작 대상 탭 (최상위 대분류) */
+.subject-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.stab { flex: 1 1 30%; padding: 8px 4px; border-radius: 8px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--line); color: var(--sub);
+  font-size: 12px; font-family: inherit; font-weight: 600; transition: .15s; }
+.stab:hover { border-color: var(--accent); }
+.stab.on { background: linear-gradient(135deg, var(--accent), #d9a441); color: #1a1205; border-color: transparent; }
+/* 캐릭터 대상이 아니면 캐릭터 전용 필드(엔티티 하위탭·직업 프리셋) 숨김 */
+#gen-form:not([data-subject="character"]) .char-only { display: none; }
+
 .entity-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
 .etab { flex: 1; padding: 8px 4px; border-radius: 8px; cursor: pointer;
   background: var(--bg); border: 1px solid var(--line); color: var(--sub);

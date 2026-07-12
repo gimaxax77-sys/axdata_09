@@ -4,10 +4,11 @@ const FILES = "/files/";
 
 let CATALOG = null;
 let STATUS = null; // /api/status (모드 + 가격)
-let ENTITY = "character";
+let SUBJECT = "character"; // 제작 대상: character | item | environment | vfx | ui
+let ENTITY = "character";  // 캐릭터 대상 하위: character | monster | npc
 let MODE = "single"; // single | batch
 
-// 엔티티별 role 라벨 힌트
+// 엔티티별 role 라벨 힌트 (캐릭터 대상)
 const ROLE_LABEL = {
   character: "직업 / 역할",
   monster: "종족 / 유형",
@@ -18,12 +19,21 @@ const ROLE_PH = {
   monster: "예: 드래곤, 골렘, 언데드…",
   npc: "예: 상인, 대장장이, 정보상…",
 };
+// 사물/디자인 대상의 역할 라벨·힌트 (캐릭터 기획 없음)
+const SUBJECT_ROLE = {
+  item: ["유형 / 설명", "예: 화염 대검, 판금 갑옷, 마력 반지…"],
+  environment: ["유형 / 설명", "예: 폐허 도시, 고대 숲, 수정 동굴…"],
+  vfx: ["유형 / 설명", "예: 화염 폭발, 회복 오라, 참격 이펙트…"],
+  ui: ["유형 / 설명", "예: 다크 판타지 UI, 네온 HUD…"],
+};
 
 // ── 초기 로드 ────────────────────────────────────────────
 async function init() {
   await loadStatus();
   CATALOG = await (await fetch("/api/catalog")).json();
+  renderSubjectTabs();
   renderEntityTabs();
+  applySubjectUI();
   renderAssetPicker();
   renderGenres();
   renderRoles();
@@ -56,7 +66,7 @@ async function loadPresets(selectName) {
 function gatherConfig() {
   const fd = new FormData($("#gen-form"));
   return {
-    mode: MODE, entity: ENTITY,
+    mode: MODE, subject: SUBJECT, entity: ENTITY,
     name: fd.get("name") || "", genre: fd.get("genre"), role: fd.get("role") || "",
     art_style: fd.get("art_style") || "", keywords: fd.get("keywords") || "",
     image_scale: fd.get("image_scale"), variant_count: fd.get("variant_count"),
@@ -76,8 +86,12 @@ function applyConfig(cfg) {
   if (cfg.entity) {
     ENTITY = cfg.entity;
     $$(".etab").forEach((x) => x.classList.toggle("on", x.dataset.e === ENTITY));
-    if ($("#role-label")) $("#role-label").childNodes[0].nodeValue = ROLE_LABEL[ENTITY] + " ";
   }
+  if (cfg.subject) {
+    SUBJECT = cfg.subject;
+    $$(".stab").forEach((x) => x.classList.toggle("on", x.dataset.s === SUBJECT));
+  }
+  applySubjectUI();
   renderAssetPicker();
   const setV = (sel, v) => { const el = $(sel); if (el != null && v != null) el.value = v; };
   setV('input[name="name"]', cfg.name); setV('select[name="genre"]', cfg.genre);
@@ -251,9 +265,17 @@ function loadHistoryConfig(data) {
   // 이미지 크기 select 값 매칭(1.0 이 "1" 로 바뀌지 않게 문자열화)
   const scale = req.image_scale != null
     ? (Number(req.image_scale) === 1 ? "1.0" : String(req.image_scale)) : undefined;
+  // 제작 대상 복원: 사물 대상은 entity_type 에 subject 가 저장되어 있음
+  const objectKeys = new Set((CATALOG.subjects || [])
+    .filter((s) => s.key !== "character").map((s) => s.key));
+  const savedType = c.entity_type || data.entity_type || req.entity_type;
+  const subject = req.subject || (objectKeys.has(savedType) ? savedType : "character");
+  const entity = subject === "character"
+    ? (req.entity_type || c.entity_type || "character") : "character";
   applyConfig({
     mode: isBatch ? "batch" : "single",
-    entity: c.entity_type || data.entity_type || req.entity_type,
+    subject: subject,
+    entity: entity,
     name: isBatch ? "" : (c.name || req.name),
     genre: c.genre || req.genre,
     role: c.role || req.role,
@@ -327,6 +349,15 @@ function wireModeToggle() {
     $("#gen-form").classList.toggle("hidden", isImport);
     $("#import-section").classList.toggle("hidden", !isImport);
     $("#pform-foot").classList.toggle("hidden", isImport);
+    // 제작 대상 탭은 단일 생성에서만. 일괄(도감)은 캐릭터/몬스터/NPC 전용.
+    const subjTabs = $("#subject-tabs");
+    if (subjTabs) subjTabs.classList.toggle("hidden", MODE !== "single");
+    if (MODE === "batch" && SUBJECT !== "character") {
+      SUBJECT = "character";
+      $$(".stab").forEach((x) => x.classList.toggle("on", x.dataset.s === "character"));
+      applySubjectUI();
+      renderAssetPicker();
+    }
     if (!isImport) {
       $("#single-fields").classList.toggle("hidden", MODE === "batch");
       $("#batch-fields").classList.toggle("hidden", MODE === "single");
@@ -355,7 +386,41 @@ async function loadStatus() {
   } catch (e) {}
 }
 
-// ── 엔티티 탭 ────────────────────────────────────────────
+// ── 제작 대상 탭 (최상위 대분류) ─────────────────────────
+function subjectDef(key) {
+  return (CATALOG.subjects || []).find((s) => s.key === key) || null;
+}
+function renderSubjectTabs() {
+  const el = $("#subject-tabs");
+  if (!el) return;
+  el.innerHTML = (CATALOG.subjects || []).map((s) =>
+    `<button type="button" class="stab ${s.key === SUBJECT ? "on" : ""}" data-s="${s.key}">${s.label}</button>`
+  ).join("");
+  $$(".stab").forEach((b) => b.addEventListener("click", () => setSubject(b.dataset.s)));
+}
+function setSubject(key) {
+  SUBJECT = key;
+  $$(".stab").forEach((x) => x.classList.toggle("on", x.dataset.s === SUBJECT));
+  applySubjectUI();
+  renderAssetPicker();
+  computeEstimate();
+}
+// 대상에 따라 캐릭터 전용 필드(엔티티 하위탭·직업 프리셋) 표시/숨김 + 라벨 조정
+function applySubjectUI() {
+  const isChar = SUBJECT === "character";
+  $("#gen-form").dataset.subject = SUBJECT;
+  const roleInput = $('input[name="role"]');
+  if (isChar) {
+    if ($("#role-label")) $("#role-label").childNodes[0].nodeValue = ROLE_LABEL[ENTITY] + " ";
+    if (roleInput) roleInput.placeholder = ROLE_PH[ENTITY];
+  } else {
+    const [label, ph] = SUBJECT_ROLE[SUBJECT] || ["유형 / 설명", ""];
+    if ($("#role-label")) $("#role-label").childNodes[0].nodeValue = label + " ";
+    if (roleInput) roleInput.placeholder = ph;
+  }
+}
+
+// ── 엔티티 탭 (캐릭터 대상 하위) ─────────────────────────
 function renderEntityTabs() {
   const tabs = Object.entries(CATALOG.entity_types);
   $("#entity-tabs").innerHTML = tabs.map(([key, label]) =>
@@ -386,10 +451,14 @@ function groupBySuper(assets) {
   }).filter((sg) => sg.count > 0);
 }
 
-// ── 에셋 선택기 (상위 메뉴 6종) ─────────────────────────────
+// ── 에셋 선택기 (제작 대상 → 상위 메뉴) ─────────────────────
 function renderAssetPicker() {
-  const forEntity = CATALOG.assets.filter((a) => a.entities.includes(ENTITY));
-  const supers = groupBySuper(forEntity);
+  const subj = subjectDef(SUBJECT);
+  const cats = new Set(subj ? subj.cats : Object.keys(CATALOG.categories));
+  const defaults = new Set(subj ? subj.default_keys : ["fullbody"]);
+  const scoped = CATALOG.assets.filter(
+    (a) => a.entities.includes(ENTITY) && cats.has(a.category));
+  const supers = groupBySuper(scoped);
 
   $("#asset-picker").innerHTML = supers.map((sg, idx) => {
     // 중분류가 2개 이상인 메뉴(캐릭터·UI)만 세부 라벨을 보여준다.
@@ -399,7 +468,7 @@ function renderAssetPicker() {
         const badge = a.variable ? "가변" : (a.variants.length ? "×" + a.variants.length : "");
         return `
         <label class="asset-chip" title="${a.desc}">
-          <input type="checkbox" name="asset" value="${a.key}" ${a.key === "fullbody" ? "checked" : ""} />
+          <input type="checkbox" name="asset" value="${a.key}" ${defaults.has(a.key) ? "checked" : ""} />
           <span>${a.label}${badge ? `<i>${badge}</i>` : ""}</span>
         </label>`;
       }).join("");
@@ -426,7 +495,8 @@ function setAll(state) {
   $$('#asset-picker input[name="asset"]').forEach((c) => (c.checked = state));
 }
 function setDefaults() {
-  const defs = new Set(CATALOG.assets.filter((a) => a.default).map((a) => a.key));
+  const subj = subjectDef(SUBJECT);
+  const defs = new Set(subj ? subj.default_keys : CATALOG.assets.filter((a) => a.default).map((a) => a.key));
   $$('#asset-picker input[name="asset"]').forEach((c) => (c.checked = defs.has(c.value)));
 }
 
@@ -1066,7 +1136,9 @@ $("#gen-form").addEventListener("submit", async (e) => {
   } else {
     url = "/api/generate";
     payload = {
-      entity_type: ENTITY, name: fd.get("name") || "", genre: fd.get("genre"),
+      subject: SUBJECT,
+      entity_type: SUBJECT === "character" ? ENTITY : SUBJECT,
+      name: fd.get("name") || "", genre: fd.get("genre"),
       role: fd.get("role") || "",
       art_style: fd.get("art_style") || "semi-realistic digital painting",
       keywords: fd.get("keywords") || "", assets,
@@ -1208,7 +1280,12 @@ function renderResult(data) {
   const a = data.assets;
 
   const byKind = (k) => a.find((x) => x.kind === k);
-  const portrait = a.find((x) => x.is_image && x.category === "character") || byKind("sheet_png");
+  // 대표 이미지: 캐릭터면 캐릭터 아트, 사물/디자인이면 첫 이미지 산출물
+  const portrait = a.find((x) => x.is_image && x.category === "character")
+    || a.find((x) => x.is_image && x.kind !== "sheet_png" && x.kind !== "video")
+    || byKind("sheet_png");
+  // 캐릭터 기획(스탯·성격·배경)이 있는 대상인지 — 사물/디자인은 없음
+  const hasBio = (c.stats && c.stats.length) || c.personality || c.backstory;
 
   const warnHtml = data.warnings.length
     ? `<div class="warn"><b>안내</b><ul>${data.warnings.map((w) => `<li>${w}</li>`).join("")}</ul></div>` : "";
@@ -1225,7 +1302,8 @@ function renderResult(data) {
   const extra = (c.extra || []).map((x) =>
     `<div class="info-row"><b>${x.label}</b><span>${x.value}</span></div>`).join("");
 
-  const entityLabel = CATALOG.entity_types[c.entity_type] || "캐릭터";
+  const subjLabel = (CATALOG.subjects || []).find((s) => s.key === c.entity_type);
+  const entityLabel = CATALOG.entity_types[c.entity_type] || (subjLabel && subjLabel.label) || "캐릭터";
 
   // 이미지 에셋을 6개 상위 메뉴 → 중분류 순으로 그룹핑
   const imgAssets = a.filter((x) => x.is_image && x.kind !== "sheet_png" && x.kind !== "video");
@@ -1303,6 +1381,7 @@ function renderResult(data) {
 
     ${assetGroups}
 
+    ${hasBio ? `
     <div class="two-col">
       <div><p class="section-title">스탯</p><div class="stats">${stats}</div></div>
       ${extra ? `<div><p class="section-title">정보</p><div class="info-list">${extra}</div></div>` : ""}
@@ -1314,7 +1393,7 @@ function renderResult(data) {
       <h4>${c.entity_type === "monster" ? "서식지 · 전승" : "배경"}</h4>${c.backstory || ""}
       <h4>${c.entity_type === "monster" ? "공격 패턴" : "시그니처 능력"}</h4>
       <div class="abilities">${abilities}</div>
-    </div>
+    </div>` : (c.appearance ? `<div class="lore"><h4>설명</h4>${c.appearance}</div>` : "")}
 
     ${sheetBlock}
     ${videoBlock}

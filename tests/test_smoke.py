@@ -49,6 +49,29 @@ def test_supergroups_cover_every_category():
     assert len(covered) == len(set(covered))
 
 
+def test_subjects_scope_categories_and_defaults():
+    payload = cat.catalog_payload()
+    subs = {s["key"]: s for s in payload["subjects"]}
+    assert set(subs) == {"character", "item", "environment", "vfx", "ui"}
+    # 캐릭터만 기획 생성 대상
+    assert subs["character"]["concept"] is True
+    assert subs["item"]["concept"] is False
+    # 아이템 대상은 아이템 카테고리만, 기본 선택 1개 이상
+    assert subs["item"]["cats"] == ["item"]
+    assert subs["item"]["default_keys"]
+
+
+def test_object_subject_has_no_bio_and_right_assets(settings):
+    # 사물/디자인 대상은 스탯·성격 없이 해당 산출물만
+    req = GenerationRequest(subject="item", genre="fantasy", role="화염 대검")
+    res = pipeline.run_pipeline(req, settings, "job_item")
+    assert res.concept.stats == []
+    assert res.concept.personality == ""
+    assert res.concept.entity_type == "item"
+    cats = {cat.CATALOG[a.kind].category for a in res.assets if a.kind in cat.CATALOG}
+    assert "character" not in cats  # 캐릭터 아트는 생성되지 않음
+
+
 def test_vfx_and_bgm_in_catalog():
     payload = cat.catalog_payload()
     keys = {a["key"] for a in payload["assets"]}

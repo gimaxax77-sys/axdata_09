@@ -79,7 +79,55 @@ Return ONLY a JSON object with EXACTLY these keys:
 """
 
 
+# 사물/디자인 대상(캐릭터 아님) — 캐릭터 기획 없이 간단한 묘사만 생성
+_OBJECT_GUIDE = {
+    "item": ("a single game ITEM / piece of equipment (weapon, armor, accessory, "
+             "or consumable). title = 아이템 종류(예: 양손검, 판금 갑옷, 반지). "
+             "appearance = 아이템의 생김새."),
+    "environment": ("a game ENVIRONMENT / background location / scene. "
+                    "title = 장소 유형(예: 폐허 도시, 고대 숲). appearance = 장면의 분위기."),
+    "vfx": ("a game SPECIAL EFFECT (VFX) — a magic, skill, or impact effect. "
+            "title = 이펙트 종류(예: 화염 폭발, 회복 오라). appearance = 이펙트의 모습."),
+    "ui": ("a game UI / BRANDING design theme (interface, HUD, logo look). "
+           "title = UI 스타일(예: 다크 판타지 UI). appearance = 인터페이스의 미감."),
+}
+
+OBJECT_SYSTEM_PROMPT = """\
+You are a senior game art director.
+Given a short brief, you design a game asset. The asset is: {subject_kind}.
+Guidance: {guidance}
+
+Write name/title/tagline/appearance in KOREAN (한국어). It MUST match the given
+Type/Description exactly, and reflect the GENRE's aesthetic (wuxia = East-Asian
+motifs; sci-fi = high-tech; cyberpunk = neon; steampunk = brass-and-gear; etc.).
+Keep "visual_core" in ENGLISH — it is reused to build image-generation prompts and
+must be a compact, concrete visual description (shapes, materials, colors, style),
+no camera or lighting. Do NOT invent a character bio.
+
+Return ONLY a JSON object with EXACTLY these keys:
+{{
+  "name": string,          // KOREAN 이름
+  "name_en": string,       // English / romanized
+  "title": string,         // KOREAN 종류/유형
+  "tagline": string,       // KOREAN 한 줄 소개
+  "appearance": string,    // KOREAN 생김새 묘사
+  "visual_core": string,   // ENGLISH visual description
+  "color_palette": string[]  // 4-5 hex colors
+}}
+"""
+
+
 def generate_concept(req: GenerationRequest, settings: Settings) -> EntityConcept:
+    subject = getattr(req, "subject", "character") or "character"
+    # 사물/디자인 대상: 캐릭터 기획 없이 간단 묘사만
+    if subject in _OBJECT_GUIDE:
+        if settings.gpt_enabled:
+            try:
+                return _generate_object_with_openai(req, subject, settings)
+            except Exception as exc:  # pragma: no cover - network/runtime guard
+                log.warning("OpenAI 호출 실패, 데모 모드 폴백: %s", exc)
+        return _generate_object_demo(req, subject)
+
     entity = req.entity_type if req.entity_type in _ENTITY_GUIDE else "character"
     if settings.gpt_enabled:
         try:
@@ -172,6 +220,50 @@ def _coerce_concept(data, req, entity) -> EntityConcept:
         or _palette_for(req.genre),
         visual_core=data.get("visual_core") or _demo_visual(req, entity),
         extra=extra[:4],
+    )
+
+
+def _generate_object_with_openai(req, subject, settings) -> EntityConcept:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.openai_api_key)
+    resp = client.chat.completions.create(
+        model=settings.openai_model,
+        response_format={"type": "json_object"},
+        temperature=0.9,
+        messages=[
+            {"role": "system", "content": OBJECT_SYSTEM_PROMPT.format(
+                subject_kind=subject, guidance=_OBJECT_GUIDE[subject])},
+            {"role": "user", "content": _build_user_brief(req)},
+        ],
+    )
+    try:
+        from . import usage
+        u = getattr(resp, "usage", None)
+        if u is not None:
+            usage.record_openai(getattr(u, "prompt_tokens", 0),
+                                getattr(u, "completion_tokens", 0))
+    except Exception as exc:
+        log.debug("OpenAI 사용량 집계 실패(무시): %s", exc)
+
+    data = json.loads(resp.choices[0].message.content)
+    return _coerce_object(data, req, subject)
+
+
+def _coerce_object(data, req, subject) -> EntityConcept:
+    """사물/디자인 대상 — 캐릭터 기획 필드(스탯·성격·배경·능력)는 비운다."""
+    return EntityConcept(
+        entity_type=subject,
+        name=data.get("name") or req.name or req.role or _OBJECT_BITS[subject]["names"][0],
+        name_en=data.get("name_en", ""),
+        title=data.get("title", "") or _OBJECT_BITS[subject]["title"],
+        genre=data.get("genre", req.genre),
+        role=req.role,
+        tagline=data.get("tagline", ""),
+        appearance=data.get("appearance", ""),
+        color_palette=[str(c) for c in data.get("color_palette", [])][:5]
+        or _palette_for(req.genre),
+        visual_core=data.get("visual_core") or _object_visual(req, subject),
     )
 
 
@@ -302,6 +394,46 @@ def _demo_visual(req, entity) -> str:
     bits = _bits(req, entity)
     kw = f", {req.keywords}" if req.keywords else ""
     return f"{req.genre} {req.role or bits['roles'][0]}, {bits['visual']}{kw}"
+
+
+# 사물/디자인 대상 데모 데이터 (API 키 없이 동작)
+_OBJECT_BITS = {
+    "item": {"title": "장비 아이템", "names": ["룬 브레이드", "비룡의 창", "성물 방패"],
+             "visual": "ornate weapon or equipment, detailed materials, clean game item icon",
+             "appearance": "정교한 세공이 돋보이는 장비로, 은은한 마력 광채가 흐른다."},
+    "environment": {"title": "배경 장소", "names": ["잊혀진 성채", "안개 늪", "수정 동굴"],
+                    "visual": "detailed environment concept scene, atmospheric background",
+                    "appearance": "광활한 배경이 깊은 분위기를 자아낸다."},
+    "vfx": {"title": "특수효과", "names": ["화염 폭발", "서리 파동", "신성 오라"],
+            "visual": "dynamic particle effect, glowing energy burst, transparent background",
+            "appearance": "강렬한 에너지가 사방으로 퍼지는 이펙트다."},
+    "ui": {"title": "UI 테마", "names": ["다크 판타지 UI", "네온 HUD", "고전 양피지 UI"],
+           "visual": "cohesive game UI kit, clean interface theme, consistent components",
+           "appearance": "일관된 톤의 인터페이스 디자인이다."},
+}
+
+
+def _object_visual(req, subject) -> str:
+    bits = _OBJECT_BITS[subject]
+    kw = f", {req.keywords}" if req.keywords else ""
+    desc = req.role or bits["names"][0]
+    return f"{req.genre} {desc}, {bits['visual']}{kw}"
+
+
+def _generate_object_demo(req, subject) -> EntityConcept:
+    bits = _OBJECT_BITS[subject]
+    name = req.name or req.role or random.choice(bits["names"])
+    return EntityConcept(
+        entity_type=subject,
+        name=name,
+        title=bits["title"],
+        genre=req.genre,
+        role=req.role,
+        tagline=f"{req.genre} 세계의 {req.role or bits['title']}.",
+        appearance=bits["appearance"],
+        color_palette=_palette_for(req.genre),
+        visual_core=_object_visual(req, subject),
+    )
 
 
 def _demo_extra(entity: str, name: str, role: str, genre: str) -> list[LabeledText]:

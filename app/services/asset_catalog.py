@@ -37,6 +37,38 @@ SUPERGROUPS = [
     {"key": "ui", "label": "UI", "cats": ["ui", "hud"]},
     {"key": "set", "label": "세트", "cats": ["composite"]},
 ]
+_SUPER_CATS = {sg["key"]: sg["cats"] for sg in SUPERGROUPS}
+
+# 제작 대상 (최상위) — '무엇을 만들지'. 캐릭터만 캐릭터 기획(이름·스탯·성격)을
+# 생성하고, 나머지(아이템·환경·특수효과·UI)는 사물/디자인 산출물만 만든다.
+# supers: 이 대상에서 노출할 상위 메뉴 키. concept: 캐릭터형 기획 생성 여부.
+SUBJECTS = [
+    {"key": "character", "label": "캐릭터", "concept": True, "supers": ["character", "set"]},
+    {"key": "item", "label": "아이템", "concept": False, "supers": ["item"]},
+    {"key": "environment", "label": "환경", "concept": False, "supers": ["environment"]},
+    {"key": "vfx", "label": "특수효과", "concept": False, "supers": ["vfx"]},
+    {"key": "ui", "label": "UI", "concept": False, "supers": ["ui"]},
+]
+_SUBJECT_BY_KEY = {s["key"]: s for s in SUBJECTS}
+
+
+def subject_categories(subject: str) -> list[str]:
+    """제작 대상에 노출할 카테고리(중분류) 목록."""
+    subj = _SUBJECT_BY_KEY.get(subject)
+    if not subj:
+        return list(CATEGORIES)
+    return [c for sg in subj["supers"] for c in _SUPER_CATS[sg]]
+
+
+def subject_label(subject: str) -> str:
+    subj = _SUBJECT_BY_KEY.get(subject)
+    return subj["label"] if subj else CATEGORIES.get(subject, "캐릭터")
+
+
+def is_concept_subject(subject: str) -> bool:
+    """캐릭터형 기획(스탯·성격·배경)을 만드는 대상인지."""
+    subj = _SUBJECT_BY_KEY.get(subject)
+    return bool(subj["concept"]) if subj else True
 
 # 장르 (UI 드롭다운). 실제 API 는 모든 장르를 프롬프트에 반영한다.
 GENRES = {
@@ -459,12 +491,28 @@ def default_keys(entity_type: str) -> list[str]:
     return [s.key for s in specs_for_entity(entity_type) if s.default]
 
 
+def default_keys_for(subject: str, entity_type: str) -> list[str]:
+    """제작 대상 범위 안에서의 기본 선택 에셋. 기본값이 없으면 첫 이미지 1종."""
+    cats = set(subject_categories(subject))
+    specs = [s for s in specs_for_entity(entity_type) if s.category in cats]
+    picks = [s.key for s in specs if s.default]
+    if picks:
+        return picks
+    img = next((s.key for s in specs if s.is_image), None)
+    return [img] if img else [s.key for s in specs[:1]]
+
+
 def catalog_payload() -> dict:
     """프론트엔드용 카탈로그 직렬화."""
     return {
         "entity_types": ENTITY_TYPES,
         "categories": CATEGORIES,
         "supergroups": SUPERGROUPS,
+        "subjects": [
+            {**s, "cats": subject_categories(s["key"]),
+             "default_keys": default_keys_for(s["key"], "character")}
+            for s in SUBJECTS
+        ],
         "genres": GENRES,
         "art_styles": ART_STYLES,
         "role_groups": ROLE_GROUPS,
