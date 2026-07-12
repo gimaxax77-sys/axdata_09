@@ -129,7 +129,6 @@ def generate_bgm(concept: EntityConcept, out_wav: Path, out_brief: Path,
 def _write_brief(concept: EntityConcept, out_brief: Path, genre: str,
                  m: dict, bpm: int) -> None:
     kw = ", ".join(m["keywords"])
-    dur = f"{len(concept.name or '')}"  # 사용 안 함(자리표시 방지)
     text = f"""# BGM 기획서 — {concept.name}
 
 [대상] {concept.title or ''} · {concept.role or ''} ({genre})

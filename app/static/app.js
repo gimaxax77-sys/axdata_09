@@ -243,13 +243,6 @@ async function openFolder(id) {
     if (!r.ok) throw new Error();
   } catch (e) { alert("폴더 열기는 로컬 실행 시에만 동작합니다."); }
 }
-async function viewHistory(url, kind) {
-  try {
-    const data = await (await fetch(url)).json();
-    $("#empty").classList.add("hidden");
-    if (kind === "batch") renderBatch(data); else renderResult(data);
-  } catch (e) { alert("불러오기 실패"); }
-}
 
 // 히스토리 항목의 설정을 폼에 복원 — 추가 생성 편의.
 // 저장된 원본 요청(request)이 있으면 키워드·변형수·크기·옵션까지 전부 복원.

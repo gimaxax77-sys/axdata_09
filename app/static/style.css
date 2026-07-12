@@ -201,7 +201,6 @@ textarea { resize: vertical; }
 .asset-group > summary .grp-sel a:hover { text-decoration: underline; }
 .asset-group > summary::after { content: "▾"; margin-left: 8px; color: var(--mut); font-size: 10px; transition: transform .18s; }
 .asset-group:not([open]) > summary::after { transform: rotate(-90deg); }
-.group-title { font-size: 10.5px; color: var(--accent); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
 .asset-group .sub-cat { font-size: 9.5px; color: var(--mut); text-transform: uppercase;
   letter-spacing: .5px; padding: 6px 10px 0; margin: 0; }
 .group-items { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 10px 10px; }

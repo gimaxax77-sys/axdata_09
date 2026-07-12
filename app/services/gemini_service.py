@@ -164,9 +164,6 @@ def generate_asset(
                 )
         if do_cutout:
             prompt += ", isolated subject on a flat solid plain background"
-        suffix = f"_{i+1}" if multi else ""
-        out = job_dir / f"{spec.key}{suffix}.png"
-        label = f"{spec.label} · {variant}" if variant else spec.label
         is_real = _generate_image(
             prompt, out, size, settings,
             placeholder=spec.placeholder,

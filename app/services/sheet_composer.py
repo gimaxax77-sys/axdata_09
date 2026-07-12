@@ -124,7 +124,7 @@ def compose_sheet(
     portrait = images.get("portrait")
     if portrait and portrait.exists():
         p = _load_rgb(portrait).resize((480, 480), Image.LANCZOS)
-        img.paste(_rounded(p, 24), (col_x, y), _rounded_mask(480, 480, 24))
+        img.paste(p, (col_x, y), _rounded_mask(480, 480, 24))
     y += 480 + 30
 
     # 스탯 바
@@ -227,7 +227,7 @@ def compose_sheet(
     icon = images.get("icon")
     if icon and icon.exists():
         ic = _load_rgb(icon).resize((200, 200), Image.LANCZOS)
-        img.paste(_rounded(ic, 16), (MARGIN + 290, fy), _rounded_mask(200, 200, 16))
+        img.paste(ic, (MARGIN + 290, fy), _rounded_mask(200, 200, 16))
         draw.text((MARGIN + 290, fy + 206), "엠블럼", font=f_small, fill=SUB)
 
     # 푸터
@@ -252,10 +252,6 @@ def _rounded_mask(w: int, h: int, r: int) -> Image.Image:
     mask = Image.new("L", (w, h), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, w, h], radius=r, fill=255)
     return mask
-
-
-def _rounded(im: Image.Image, r: int) -> Image.Image:
-    return im
 
 
 def _fit_thumb(im: Image.Image, size: tuple[int, int]) -> Image.Image:
