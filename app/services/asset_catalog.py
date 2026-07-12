@@ -451,21 +451,12 @@ _SPECS: list[AssetSpec] = [
         desc="체력·마나·경험치 바, 미니맵/스킬 슬롯",
     ),
 
-    # ── 통합 산출물 ───────────────────────────────────────────────
+    # ── 통합 산출물(세트) ─────────────────────────────────────────
+    # 세트는 시트만 제공. 영상·BGM 은 세트 제작에서 제외한다.
     AssetSpec(
         "sheet", "캐릭터 시트 (PNG/PDF)", "composite", (0, 0), "",
         default=True, is_image=False,
         desc="아트 + 스탯 + 설정 통합 문서",
-    ),
-    AssetSpec(
-        "video", "쇼케이스 영상 (GIF/MP4) + CapCut", "composite", (0, 0), "",
-        default=True, is_image=False,
-        desc="Ken Burns 슬라이드쇼 + CapCut draft",
-    ),
-    AssetSpec(
-        "bgm", "배경음악 (BGM 루프 + CapCut 가이드)", "composite", (0, 0), "",
-        is_image=False,
-        desc="분위기 확인용 루프 음원 + CapCut 음악 검색 가이드",
     ),
 ]
 

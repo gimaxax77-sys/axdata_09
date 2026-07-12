@@ -115,12 +115,14 @@ def test_download_missing_returns_404():
     assert r.status_code == 404
 
 
-def test_vfx_and_bgm_in_catalog():
+def test_vfx_in_catalog_and_no_video_bgm():
     payload = cat.catalog_payload()
     keys = {a["key"] for a in payload["assets"]}
     assert {"vfx_element", "vfx_skill", "vfx_hit"} <= keys
     assert "vfx" in payload["categories"]
-    assert "bgm" in keys
+    # 영상·BGM 은 세트 제작에서 제외(카탈로그에 없어 선택 불가) — 시트만 유지
+    assert "video" not in keys and "bgm" not in keys
+    assert "sheet" in keys
     # VFX 는 컷아웃(투명) 대상 + 가변
     assert cat.CATALOG["vfx_element"].cutout is True
     assert cat.CATALOG["vfx_element"].variable is True
@@ -143,14 +145,23 @@ def test_bgm_generation_makes_valid_wav(tmp_path):
     assert "BPM" in brief.read_text(encoding="utf-8")
 
 
-def test_pipeline_vfx_bgm_assets(settings):
+def test_pipeline_vfx_assets(settings):
     req = GenerationRequest(entity_type="character", name="이펙트", role="마법사",
-                            genre="fantasy", assets=["vfx_element", "bgm"], variant_count=3)
+                            genre="fantasy", assets=["vfx_element"], variant_count=3)
     res = pipeline.run_pipeline(req, settings, "seed_20260711-150000")
     kinds = {a.kind for a in res.assets}
     assert "vfx_element" in kinds  # 이미지 변형
-    assert "bgm" in kinds and "bgm_guide" in kinds
     assert len([a for a in res.assets if a.kind == "vfx_element"]) == 3
+
+
+def test_video_bgm_blocked_from_selection(settings):
+    # 영상·BGM 은 선택해도 카탈로그에 없어 산출물이 생성되지 않음(코드선 차단)
+    req = GenerationRequest(entity_type="character", name="차단테스트",
+                            assets=["video", "bgm"])
+    res = pipeline.run_pipeline(req, settings, "seed_block")
+    kinds = {a.kind for a in res.assets}
+    assert "video" not in kinds
+    assert "bgm" not in kinds and "bgm_guide" not in kinds
 
 
 def test_default_keys_present_for_each_entity():
