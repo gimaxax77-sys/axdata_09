@@ -152,22 +152,41 @@ ITEM_SUBTYPES = {
             "금속 주괴"],
 }
 
-# 등급 — 선택한 등급마다 1장씩. style 은 이미지 프롬프트에 주입(아이템/VFX 각각).
+# 등급 — 10단계(뒤로 갈수록 고등급). 선택한 등급마다 1장씩.
+# 고등급일수록 외형·등급 프레임을 강하게 강조(꼭 지켜지도록 style 에 명시).
+# item/vfx: 이미지 프롬프트에 주입되는 등급별 시각 스타일.
 RARITIES = [
-    {"key": "일반", "item": "common grade, plain ordinary materials, muted colors, no glow",
-     "vfx": "common tier, small modest effect, simple sparse particles, muted colors"},
-    {"key": "레어", "item": "rare grade, polished materials, subtle blue glow",
-     "vfx": "rare tier, brighter effect, blue-tinted energy, moderate particles"},
-    {"key": "매직", "item": "magic grade, enchanted glowing runes, soft green-blue aura",
-     "vfx": "magic tier, glowing enchanted effect, swirling green-blue energy"},
-    {"key": "레전드", "item": "legendary grade, ornate golden details, radiant glow, embedded gemstones",
-     "vfx": "legendary tier, large radiant spectacular effect, golden brilliant burst"},
-    {"key": "초월", "item": "transcendent grade, prismatic divine energy, brilliant halo, highly elaborate",
-     "vfx": "transcendent tier, prismatic divine explosion, screen-filling holy light"},
-    {"key": "멸망", "item": "doom grade, dark corrupted crimson-and-black, ominous flames, menacing",
-     "vfx": "doom tier, dark crimson-black destructive blast, ominous corrupted energy"},
-    {"key": "무아", "item": "ultimate void grade, pure white-gold cosmic aura, reality-warping ethereal glow",
-     "vfx": "ultimate void tier, reality-warping cosmic cataclysm, pure white-gold apocalyptic energy"},
+    {"key": "일반",
+     "item": "COMMON grade — plain ordinary materials, muted dull colors, NO glow and NO frame",
+     "vfx": "common tier — small modest effect, simple sparse particles, muted colors"},
+    {"key": "고급",
+     "item": "UNCOMMON grade — slightly refined materials, faint sheen, a thin subtle silver border frame",
+     "vfx": "uncommon tier — slightly brighter effect, a few more particles, faint glow"},
+    {"key": "희귀",
+     "item": "RARE grade — polished with blue accents, a simple glowing blue rarity frame border",
+     "vfx": "rare tier — bright blue-tinted energy, moderate swirling particles"},
+    {"key": "영웅",
+     "item": "EPIC grade — rich purple accents and engraving, an ornate glowing purple rarity frame, soft aura",
+     "vfx": "epic tier — vivid purple energy, dynamic swirling particles, notable glow"},
+    {"key": "전설",
+     "item": "LEGENDARY grade — ornate golden details and embedded gemstones, a radiant glowing GOLDEN rarity frame",
+     "vfx": "legendary tier — large radiant golden burst, spectacular energy"},
+    {"key": "초월",
+     "item": "TRANSCENDENT grade — prismatic divine energy, brilliant halo, a highly elaborate glowing rainbow frame",
+     "vfx": "transcendent tier — prismatic divine explosion, screen-filling holy light"},
+    {"key": "멸망",
+     "item": "DOOM grade — dark corrupted crimson-and-black, ominous jagged black-red frame, menacing malevolent aura",
+     "vfx": "doom tier — dark crimson-black destructive blast, ominous corrupted energy"},
+    {"key": "태초",
+     "item": "PRIMORDIAL grade — ancient glowing cosmic runes, a radiant runic frame, timeless overwhelming power",
+     "vfx": "primordial tier — ancient cosmic runic energy, vast radiant power"},
+    {"key": "무아",
+     "item": "VOID grade — pure white-gold ethereal cosmic aura, a reality-warping ornate frame, otherworldly",
+     "vfx": "void tier — reality-warping cosmic cataclysm, pure white-gold apocalyptic energy"},
+    {"key": "극",
+     "item": "ULTIMATE PINNACLE grade — the absolute highest tier, overwhelming radiant godlike aura, the MOST "
+             "elaborate and grand ornate frame of all, blindingly magnificent",
+     "vfx": "ultimate pinnacle tier — the absolute highest effect, overwhelming godlike energy filling everything"},
 ]
 RARITY_KEYS = [r["key"] for r in RARITIES]
 RARITY_STYLE = {r["key"]: r["item"] for r in RARITIES}       # 아이템용
@@ -187,7 +206,7 @@ _CHAR_REF_KEYS = frozenset({
 _CUTOUT_KEYS = frozenset({
     "portrait", "fullbody", "expressions", "poses", "turnaround",
     "pixel_sprite", "emblem", "emote", "companion",
-    "item_art", "weapon_icons", "item_grid", "skill_icons", "rarity_frame",
+    "item_art",
     "ui_icons", "ui_currency",
     "anim_idle", "anim_walk", "anim_attack",
     "vfx_art", "vfx_element", "vfx_skill", "vfx_hit",
@@ -348,43 +367,12 @@ _SPECS: list[AssetSpec] = [
     # ── 아이템 / 장비 ─────────────────────────────────────────────
     AssetSpec(
         "item_art", "아이템 일러스트", "item", (768, 768),
-        "detailed game item icon of {name}, {visual}, {genre} style, {variant} grade, "
-        "single centered item on a plain neutral background, no text",
+        "detailed game item icon of {name}, {visual}, {genre} style, single centered item "
+        "on a plain neutral background, no text. Rarity — {variant}: the rarity tier MUST be "
+        "unmistakably conveyed by the item's ornateness AND a matching rarity frame/border "
+        "(higher rarity = far more elaborate and dramatic; keep this strong and consistent)",
         placeholder="emblem",
-        desc="아이템 본체 일러스트 (선택한 등급별로 1장씩)",
-    ),
-    AssetSpec(
-        "weapon_icons", "무기/방어구 아이콘", "item", (512, 512),
-        "game item icon of the {variant} of {name}, {visual} theme, "
-        "{genre}, detailed item icon, centered, plain background",
-        placeholder="emblem",
-        variants=("주무기", "보조 장비", "방어구"),
-        entities=frozenset({"character", "npc"}),
-        desc="주무기·보조장비·방어구 아이콘",
-    ),
-    AssetSpec(
-        "item_grid", "인벤토리 아이템", "item", (768, 768),
-        "grid of {genre} game inventory items related to {name}, {visual} theme, "
-        "consumables and materials, item icons on a subtle grid, plain background",
-        placeholder="emblem",
-        desc="소비/재료 아이템 그리드",
-    ),
-    AssetSpec(
-        "skill_icons", "스킬 아이콘", "item", (512, 512),
-        "ability skill icon for {name}'s {variant}, {visual} theme, "
-        "{genre} spell effect, glowing, centered, plain background",
-        placeholder="emblem",
-        variant_pool=("스킬 I", "스킬 II", "스킬 III", "궁극기", "패시브",
-                      "버프", "디버프", "소환", "강타", "치유"),
-        desc="스킬·이펙트 아이콘 (개수 선택)",
-    ),
-    AssetSpec(
-        "rarity_frame", "등급 프레임", "item", (512, 512),
-        "game item card of {name} with a {variant} rarity ornate frame border, "
-        "{visual} theme, {genre}, glowing rarity effect, centered",
-        placeholder="emblem",
-        variants=("일반", "고급", "희귀", "영웅", "전설"),
-        desc="아이템 등급별 프레임",
+        desc="아이템 본체 일러스트 (선택한 등급별로 1장씩, 등급 프레임 강조)",
     ),
 
     # ── 환경 / 배경 ───────────────────────────────────────────────

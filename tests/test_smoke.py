@@ -75,11 +75,11 @@ def test_object_subject_has_no_bio_and_right_assets(settings):
 def test_item_art_generates_per_selected_rarity(settings):
     # 아이템 일러스트는 선택한 등급 수만큼 생성(등급이 변형 축)
     req = GenerationRequest(subject="item", genre="fantasy", role="장검",
-                            assets=["item_art"], rarities=["일반", "레전드", "무아"])
+                            assets=["item_art"], rarities=["일반", "전설", "극"])
     res = pipeline.run_pipeline(req, settings, "job_item_rar")
     arts = [a for a in res.assets if a.kind == "item_art"]
     assert len(arts) == 3
-    assert {a.label.split("·")[-1].strip() for a in arts} == {"일반", "레전드", "무아"}
+    assert {a.label.split("·")[-1].strip() for a in arts} == {"일반", "전설", "극"}
 
 
 def test_item_art_defaults_to_one_when_no_rarity(settings):

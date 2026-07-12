@@ -597,7 +597,7 @@ def _pick_images(image_map: dict[str, Path]) -> dict[str, Path]:
     picks: dict[str, Path] = {}
     p = first("portrait", "expressions", "poses", "turnaround", "card_frame", "fullbody")
     fb = first("fullbody", "poses", "turnaround", "banner", "background", "portrait")
-    ic = first("emblem", "weapon_icons", "skill_icons", "item_grid", "logo", "portrait")
+    ic = first("emblem", "item_art", "vfx_art", "logo", "portrait")
     if p:
         picks["portrait"] = p
     if fb:
