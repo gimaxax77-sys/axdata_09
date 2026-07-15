@@ -259,6 +259,33 @@ def test_make_tileable_preserves_size():
     assert out.size == (64, 64)
 
 
+def test_rarity_frame_draws_border_high_tier(tmp_path):
+    # 고등급은 가장자리에 등급색 테두리가 그려지고 크기는 그대로
+    src = tmp_path / "art.png"
+    Image.new("RGB", (200, 200), (20, 20, 20)).save(src)
+    imageops.apply_rarity_frame(src, "전설")  # 금색 프레임
+    out = Image.open(src)
+    assert out.size == (200, 200)
+    r, g, bl = out.getpixel((0, 0))[:3]
+    assert r > 120 and g > 90 and bl < 120  # 금빛 테두리(원본 어두운색 아님)
+
+
+def test_rarity_frame_common_no_change(tmp_path):
+    # '일반'은 프레임 없음(원본 유지)
+    src = tmp_path / "art2.png"
+    Image.new("RGB", (100, 100), (30, 30, 30)).save(src)
+    imageops.apply_rarity_frame(src, "일반")
+    assert Image.open(src).getpixel((0, 0))[:3] == (30, 30, 30)
+
+
+def test_subtypes_cover_item_env_ui():
+    p = cat.catalog_payload()
+    st = p["subtypes"]
+    assert st["무기"][0] == "장검"          # 아이템
+    assert "보스방" in st["던전"]           # 환경
+    assert "버튼" in st["다크 판타지"]       # UI
+
+
 def test_breathe_keeps_size_and_bottom(tmp_path):
     # 호흡 프레임은 크기가 그대로여야 하고(흔들림 방지), 발(하단)은 고정
     src = tmp_path / "base.png"

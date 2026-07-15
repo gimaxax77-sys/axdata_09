@@ -102,7 +102,7 @@ function applyConfig(cfg) {
   // 종류(중분류) 복원 — 아이템이면 세부 목록까지 채움
   if (cfg.type_group) {
     const rp = $("#role-preset");
-    if (rp) { rp.value = cfg.type_group; if (SUBJECT === "item") renderSubtypes(cfg.type_group); }
+    if (rp) { rp.value = cfg.type_group; if (SUBJECT !== "character") renderSubtypes(cfg.type_group); }
   }
   renderAssetPicker();
   if (Array.isArray(cfg.rarities) && cfg.rarities.length) {
@@ -211,20 +211,20 @@ function renderRoles() {
   }
   sel.innerHTML = html;
   sel.classList.toggle("hidden", !html);  // 프리셋 없는 대상은 드롭다운 숨김
-  // 아이템: 종류 → 세부 종류(2단계). 그 외: 선택 시 역할 입력칸을 채움.
+  // 종류 선택 시 역할칸을 채우고, 세부 종류(2단계)가 있으면 아래에 표시.
   sel.onchange = () => {
-    if (SUBJECT === "item") { renderSubtypes(sel.value); }
-    else if (sel.value && input) { input.value = sel.value; }
+    if (sel.value && input) input.value = sel.value;
+    if (SUBJECT !== "character") renderSubtypes(sel.value);
   };
-  if (SUBJECT !== "item") renderSubtypes("");  // 아이템 아닐 때 세부 드롭다운 숨김
+  renderSubtypes(SUBJECT === "character" ? "" : sel.value);
 }
 
-// 아이템 세부 종류(무기 → 장검/단검/…) — 종류 선택 시 아래에 표시
+// 세부 종류(무기→장검, 던전→보스방, 다크판타지→버튼 …) — 종류에 세부가 있으면 표시
 function renderSubtypes(typeVal) {
   const box = $("#subtype-preset");
   if (!box) return;
-  const subs = (CATALOG.item_subtypes || {})[typeVal] || [];
-  if (SUBJECT !== "item" || !subs.length) {
+  const subs = (CATALOG.subtypes || {})[typeVal] || [];
+  if (!subs.length) {
     box.classList.add("hidden"); box.innerHTML = ""; return;
   }
   box.innerHTML = '<option value="">— 세부 종류 선택 —</option>' +
@@ -256,7 +256,7 @@ async function renderHistoryList() {
   let items = [];
   try { items = await (await fetch("/api/history")).json(); } catch (e) {}
   if (!items.length) { el.innerHTML = '<p class="hint">아직 생성 기록이 없습니다.</p>'; return; }
-  el.innerHTML = items.map((it) => `
+  const cardHtml = (it) => `
     <div class="hist-card" data-url="${it.result_url}" data-kind="${it.kind}" data-id="${it.id}"
          title="클릭: 설정 불러오기 + 결과 보기">
       <div class="hist-thumb">${it.thumb ? `<img src="/files/${it.thumb}" loading="lazy"/>` : "<span>◈</span>"}</div>
@@ -269,7 +269,23 @@ async function renderHistoryList() {
         <a href="/api/zip/${jobPath(it.id)}" download title="ZIP 다운로드">📦</a>
         <a href="#" class="hist-del" title="삭제">🗑</a>
       </div>
-    </div>`).join("");
+    </div>`;
+  // 대분류/중분류(저장 폴더 구조)로 트리 구성. 옛 평면 기록은 '미분류'로.
+  const tree = {};
+  items.forEach((it) => {
+    const parts = String(it.id).split("/");
+    const [top, mid] = parts.length >= 3 ? [parts[0], parts[1]] : ["미분류", ""];
+    ((tree[top] ||= {})[mid] ||= []).push(it);
+  });
+  el.innerHTML = Object.entries(tree).map(([top, mids], ti) => {
+    const count = Object.values(mids).reduce((n, a) => n + a.length, 0);
+    const body = Object.entries(mids).map(([mid, arr]) =>
+      mid
+        ? `<details class="hist-sub" open><summary>${mid} <span class="cnt">(${arr.length})</span></summary>${arr.map(cardHtml).join("")}</details>`
+        : arr.map(cardHtml).join("")
+    ).join("");
+    return `<details class="hist-grp" ${ti < 2 ? "open" : ""}><summary>${top} <span class="cnt">(${count})</span></summary>${body}</details>`;
+  }).join("");
   el.querySelectorAll(".hist-card").forEach((card) => {
     card.addEventListener("click", async (e) => {
       if (e.target.closest(".hist-actions")) return;

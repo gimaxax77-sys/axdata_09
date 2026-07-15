@@ -150,6 +150,56 @@ def breathe(src: Path, dst: Path, phase: float, amp: float = 0.02) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────
+# 등급(rarity) 프레임 후처리 — 등급별 테두리를 확실히 입혀 차이가 항상 보이게
+# ─────────────────────────────────────────────────────────────────────
+# 등급별 (테두리색 RGB, 굵기 배수). 뒤로 갈수록 굵고 화려하게.
+_RARITY_FRAME = {
+    "일반":  ((150, 150, 150), 0),   # 프레임 없음
+    "고급":  ((200, 205, 210), 1),
+    "희귀":  ((70, 140, 240), 2),
+    "영웅":  ((165, 80, 230), 3),
+    "전설":  ((240, 190, 60), 4),
+    "초월":  ((80, 220, 220), 5),
+    "멸망":  ((200, 40, 55), 5),
+    "태초":  ((60, 200, 170), 6),
+    "무아":  ((245, 240, 210), 7),
+    "극":    ((255, 90, 210), 8),
+}
+
+
+def apply_rarity_frame(path: Path, rarity: str) -> None:
+    """등급별 색·굵기의 테두리 프레임을 이미지 가장자리에 그려 다시 저장.
+
+    AI 결과와 무관하게 등급 차이가 항상 드러나도록(‘꼭 지켜지도록’) 하는 후처리.
+    '일반'은 프레임 없음. 고등급일수록 굵고 이중선+은은한 내부 글로우.
+    """
+    color, level = _RARITY_FRAME.get(rarity, ((150, 150, 150), 0))
+    if level <= 0:
+        return
+    try:
+        img = Image.open(path)
+        mode = img.mode if img.mode in ("RGB", "RGBA") else "RGBA"
+        img = img.convert(mode)
+        w, h = img.size
+        unit = max(2, round(min(w, h) / 200))     # 해상도 비례 기본 두께
+        t = unit * level                            # 등급별 외곽선 두께
+        draw = ImageDraw.Draw(img)
+        outline = color + ((255,) if mode == "RGBA" else ())
+        # 외곽 테두리(굵게)
+        for i in range(t):
+            draw.rectangle([i, i, w - 1 - i, h - 1 - i], outline=outline)
+        # 고등급(≥4): 안쪽에 밝은 이중선 한 줄 추가(글로우 느낌)
+        if level >= 4:
+            inner = tuple(min(255, c + 60) for c in color)
+            inner = inner + ((255,) if mode == "RGBA" else ())
+            g = t + unit * 2
+            draw.rectangle([g, g, w - 1 - g, h - 1 - g], outline=inner, width=max(1, unit))
+        img.save(path)
+    except Exception as exc:  # pragma: no cover - 방어
+        log.warning("등급 프레임 적용 실패(원본 유지): %s", exc)
+
+
+# ─────────────────────────────────────────────────────────────────────
 # 디코드/리사이즈 유틸
 # ─────────────────────────────────────────────────────────────────────
 def as_bytesio(data):

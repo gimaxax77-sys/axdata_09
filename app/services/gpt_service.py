@@ -159,6 +159,9 @@ def _build_user_brief(req: GenerationRequest) -> str:
     if req.name:
         parts.append(f"Name: {req.name}")
     parts.append(f"Genre: {req.genre}")
+    tg = getattr(req, "type_group", "")
+    if tg and tg != req.role:
+        parts.append(f"Category/Theme: {tg}")  # 종류/테마(예: 무기, 던전, 다크 판타지 UI)
     if req.role:
         parts.append(f"Role/Species/Type: {_normalize_proportion(req.role)}")
     parts.append(f"Art style: {req.art_style}")
@@ -420,7 +423,9 @@ def _object_visual(req, subject) -> str:
     bits = _OBJECT_BITS[subject]
     kw = f", {req.keywords}" if req.keywords else ""
     desc = req.role or bits["names"][0]
-    return f"{req.genre} {desc}, {bits['visual']}{kw}"
+    tg = getattr(req, "type_group", "")
+    theme = f"{tg} " if tg and tg != req.role else ""
+    return f"{req.genre} {theme}{desc}, {bits['visual']}{kw}"
 
 
 def _generate_object_demo(req, subject) -> EntityConcept:

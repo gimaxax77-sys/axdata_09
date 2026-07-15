@@ -435,6 +435,21 @@ textarea { resize: vertical; }
 .mini-btn:hover { filter: brightness(1.1); }
 .path-btns #path-default { font-size: 11px; color: var(--accent); text-decoration: none; margin-left: auto; }
 .history-list { display: flex; flex-direction: column; gap: 8px; }
+/* 히스토리 대분류/중분류 트리 */
+.hist-grp { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; }
+.hist-grp > summary { cursor: pointer; list-style: none; padding: 7px 10px; font-size: 12px;
+  font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 6px; user-select: none; }
+.hist-grp > summary::-webkit-details-marker { display: none; }
+.hist-grp > summary::after { content: "▾"; margin-left: auto; color: var(--mut); font-size: 10px; transition: transform .18s; }
+.hist-grp:not([open]) > summary::after { transform: rotate(-90deg); }
+.hist-grp .cnt { color: var(--mut); font-size: 10px; font-weight: 400; }
+.hist-sub { margin: 0 6px 6px; }
+.hist-sub > summary { cursor: pointer; list-style: none; padding: 5px 8px; font-size: 11px;
+  color: var(--sub); display: flex; align-items: center; gap: 5px; user-select: none; }
+.hist-sub > summary::-webkit-details-marker { display: none; }
+.hist-sub > summary::after { content: "▾"; margin-left: auto; color: var(--mut); font-size: 9px; }
+.hist-sub:not([open]) > summary::after { transform: rotate(-90deg); }
+.hist-grp .hist-card, .hist-sub .hist-card { margin: 4px 8px; }
 .hist-card { display: flex; align-items: center; gap: 10px; background: var(--pane2);
   border: 1px solid var(--line); border-radius: 10px; padding: 7px; cursor: pointer; transition: border-color .12s; }
 .hist-card:hover { border-color: var(--accent2); }

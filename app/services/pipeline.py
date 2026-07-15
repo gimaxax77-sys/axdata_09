@@ -173,6 +173,11 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
             transparent=req.transparent, model=req.image_model,
             variants_override=rar_override, variant_styles=rar_styles,
         )
+        # 등급 프레임 후처리: AI 결과와 무관하게 등급 테두리를 확실히 입힘
+        if rar_override:
+            from . import imageops
+            for res in results:
+                imageops.apply_rarity_frame(res.path, res.variant)
         for res in results:
             image_map.setdefault(spec.key, res.path)  # 첫 변형을 대표로
             if res.demo:
