@@ -91,7 +91,16 @@ def serve_output(path: str) -> FileResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
-    return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    # 캐시 무효화: app.js/style.css 수정시각을 ?v= 버전으로 주입해, 업데이트 후
+    # 브라우저가 예전 파일을 캐시에서 쓰지 않고 항상 최신을 받도록 한다.
+    try:
+        ver = int(max((STATIC_DIR / f).stat().st_mtime for f in ("app.js", "style.css")))
+    except OSError:
+        ver = 0
+    html = (html.replace('src="/app.js"', f'src="/app.js?v={ver}"')
+                .replace('href="/style.css"', f'href="/style.css?v={ver}"'))
+    return HTMLResponse(html)
 
 
 @app.get("/api/status")

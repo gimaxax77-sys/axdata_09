@@ -144,6 +144,15 @@ def test_require_local_blocks_non_loopback():
     assert r.status_code == 403
 
 
+def test_index_injects_cache_busting_version():
+    # 정적 파일에 ?v= 버전이 붙어 업데이트 후 브라우저가 최신을 받도록 함
+    from fastapi.testclient import TestClient
+    from app.main import app
+    html = TestClient(app).get("/").text
+    assert 'src="/app.js?v=' in html
+    assert 'href="/style.css?v=' in html
+
+
 def test_download_missing_returns_404():
     # 없는 잡/파일 다운로드는 404 (경로 방어 _safe_path 경유)
     from fastapi.testclient import TestClient
