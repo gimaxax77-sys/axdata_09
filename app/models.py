@@ -105,6 +105,8 @@ class RegenerateRequest(BaseModel):
     transparent: bool = Field(False)
     style_lock: bool = Field(False)
     image_model: str = Field("")
+    extra_prompt: str = Field("", max_length=1000,
+                              description="이 에셋에만 덧붙일 사용자 추가 지시(프롬프트 끝에 강조로 반영)")
 
 
 class ImportRunRequest(BaseModel):

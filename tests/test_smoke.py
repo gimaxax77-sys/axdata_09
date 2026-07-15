@@ -16,7 +16,7 @@ from app.models import (
     GenerationRequest, BatchRequest, RegenerateRequest, RepackRequest, GenBase,
 )
 from app.services import asset_catalog as cat
-from app.services import imageops, pipeline, progress
+from app.services import gemini_service, imageops, pipeline, progress
 
 
 @pytest.fixture()
@@ -417,6 +417,25 @@ def test_regenerate_asset(settings):
     rr = RegenerateRequest(asset_key="emblem", variant_count=2)
     new = pipeline.regenerate_asset(rr, settings, res.job_id)
     assert new and all(a.kind == "emblem" for a in new)
+
+
+def test_regenerate_extra_prompt_reaches_image(settings, monkeypatch):
+    """에셋별 추가 지시문이 실제 생성 프롬프트 끝에 반영되는지 검증."""
+    req = GenerationRequest(entity_type="character", name="추가지시", role="검사",
+                            assets=["emblem"], variant_count=1)
+    res = pipeline.run_pipeline(req, settings, "job_extra")
+    seen = []
+    orig = gemini_service._generate_image
+
+    def spy(prompt, *a, **k):
+        seen.append(prompt)
+        return orig(prompt, *a, **k)
+
+    monkeypatch.setattr(gemini_service, "_generate_image", spy)
+    marker = "glowing crimson runes"
+    rr = RegenerateRequest(asset_key="emblem", variant_count=1, extra_prompt=marker)
+    pipeline.regenerate_asset(rr, settings, res.job_id)
+    assert seen and any(marker in p for p in seen)
 
 
 def test_repack_variants_keeps_selected(settings):

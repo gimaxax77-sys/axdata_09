@@ -108,6 +108,7 @@ def generate_asset(
     model: str = "",
     variants_override: "list[str] | None" = None,
     variant_styles: "dict | None" = None,
+    extra_prompt: str = "",
 ) -> list[ImageResult]:
     """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장.
 
@@ -184,6 +185,9 @@ def generate_asset(
                 )
         if do_cutout:
             prompt += ", isolated subject on a flat solid plain background"
+        # 사용자 추가 지시(에셋별) — 맨 끝에 강조로 반영. 안전장치는 위에서 유지.
+        if extra_prompt.strip():
+            prompt += f". {extra_prompt.strip()}"
         is_real = _generate_image(
             prompt, out, size, settings,
             placeholder=spec.placeholder,
