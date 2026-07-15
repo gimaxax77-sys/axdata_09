@@ -185,6 +185,7 @@ def run_pipeline(req: GenerationRequest, settings: Settings, job_id: str) -> Gen
             assets.append(GeneratedAsset(
                 kind=spec.key, category=spec.category, path=rel(res.path),
                 label=res.label, demo=res.demo, is_image=True,
+                variant=res.variant if rar_override else "",  # 등급 배지용
             ))
 
         # 애니메이션: 가로 스트립 시트 + 반복 GIF 자동 생성

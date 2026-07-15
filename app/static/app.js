@@ -3,6 +3,12 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const FILES = "/files/";
 // 중첩 job 경로(대분류/중분류/폴더)를 URL 로 — 세그먼트만 인코딩하고 '/'는 유지
 const jobPath = (id) => String(id || "").split("/").map(encodeURIComponent).join("/");
+// 등급 배지 — 변형이 등급이면 등급색 라벨을 반환(아이템·특수효과 결과 카드용)
+function rarityBadge(variant) {
+  const colors = (CATALOG && CATALOG.rarity_colors) || {};
+  if (!variant || !colors[variant]) return "";
+  return `<span class="rarity-badge" style="--rc:${colors[variant]}">${variant}</span>`;
+}
 
 let CATALOG = null;
 let STATUS = null; // /api/status (모드 + 가격)
@@ -1403,7 +1409,7 @@ function renderResult(data) {
   imgAssets.forEach((x) => { kindCounts[x.kind] = (kindCounts[x.kind] || 0) + 1; });
   const card = (x) => `
         <div class="asset-card" data-kind="${x.kind}" data-file="${fnOf(x.path)}" data-label="${x.label}">
-          <div class="media"><img src="${FILES}${x.path}?t=${Date.now()}" alt="${x.label}" loading="lazy"/></div>
+          <div class="media">${rarityBadge(x.variant)}<img src="${FILES}${x.path}?t=${Date.now()}" alt="${x.label}" loading="lazy"/></div>
           <div class="asset-meta"><span class="lbl">${x.label}${x.demo ? '<span class="badge-demo">DEMO</span>' : ""}</span>
             <span class="asset-actions">
               ${kindCounts[x.kind] > 1 ? `<button type="button" class="compare-btn" data-compare="${x.kind}" title="변형 비교·채택 (${kindCounts[x.kind]}장)">⊞</button>` : ""}

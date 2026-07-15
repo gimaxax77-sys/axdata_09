@@ -170,9 +170,25 @@ ENV_SUBTYPES = {
 }
 _UI_COMPONENTS = ["전체 킷", "버튼", "창/패널", "아이콘", "HUD", "로고", "타이틀"]
 UI_SUBTYPES = {theme: list(_UI_COMPONENTS) for theme in TYPE_LISTS["ui_types"]}
+VFX_SUBTYPES = {
+    "화염": ["폭발", "화염구", "불기둥", "불길", "잿불"],
+    "빙결": ["빙결 폭발", "고드름", "눈보라", "얼음 파편"],
+    "전격": ["낙뢰", "스파크", "전기장", "감전"],
+    "맹독": ["독구름", "독액", "부식", "역병"],
+    "신성": ["신성 폭발", "빛기둥", "치유 광휘", "축복"],
+    "암흑": ["암흑 폭발", "그림자", "저주", "심연"],
+    "대지": ["바위 분출", "지진", "가시", "모래폭풍"],
+    "질풍": ["회오리", "바람 칼날", "돌풍"],
+    "참격": ["베기", "십자 참격", "연속 베기"],
+    "폭발": ["폭발", "충격파", "파편", "연쇄 폭발"],
+    "치유 오라": ["회복 광휘", "재생", "생명의 빛"],
+    "보호막": ["방어막", "결계", "반사막"],
+    "버프": ["강화 오라", "공격 강화", "속도 강화"],
+    "소환": ["소환진", "정령 소환", "그림자 분신"],
+}
 
-# 세 대상 통합(종류 값이 유일하므로 병합). 프론트가 종류로 세부 목록을 찾는다.
-SUBTYPES = {**ITEM_SUBTYPES, **ENV_SUBTYPES, **UI_SUBTYPES}
+# 대상 통합(종류 값이 유일하므로 병합). 프론트가 종류로 세부 목록을 찾는다.
+SUBTYPES = {**ITEM_SUBTYPES, **ENV_SUBTYPES, **UI_SUBTYPES, **VFX_SUBTYPES}
 
 # 등급 — 10단계(뒤로 갈수록 고등급). 선택한 등급마다 1장씩.
 # 고등급일수록 외형·등급 프레임을 강하게 강조(꼭 지켜지도록 style 에 명시).
@@ -213,6 +229,12 @@ RARITIES = [
 RARITY_KEYS = [r["key"] for r in RARITIES]
 RARITY_STYLE = {r["key"]: r["item"] for r in RARITIES}       # 아이템용
 VFX_RARITY_STYLE = {r["key"]: r["vfx"] for r in RARITIES}    # 특수효과용
+# 등급별 색(프레임·배지 공용 단일 소스)
+RARITY_COLORS = {
+    "일반": "#969696", "고급": "#c8cdd2", "희귀": "#468cf0", "영웅": "#a550e6",
+    "전설": "#f0be3c", "초월": "#50dcdc", "멸망": "#c82837", "태초": "#3cc8aa",
+    "무아": "#f5f0d2", "극": "#ff5ad2",
+}
 # 등급이 변형 축이 되는 에셋 → 각자의 등급 스타일 맵
 RARITY_ASSETS = {"item_art": RARITY_STYLE, "vfx_art": VFX_RARITY_STYLE}
 
@@ -586,6 +608,7 @@ def catalog_payload() -> dict:
         "type_lists": TYPE_LISTS,
         "subtypes": SUBTYPES,
         "rarities": RARITY_KEYS,
+        "rarity_colors": RARITY_COLORS,
         "image_models": IMAGE_MODELS,
         "assets": [
             {

@@ -278,12 +278,23 @@ def test_rarity_frame_common_no_change(tmp_path):
     assert Image.open(src).getpixel((0, 0))[:3] == (30, 30, 30)
 
 
-def test_subtypes_cover_item_env_ui():
+def test_subtypes_cover_item_env_ui_vfx():
     p = cat.catalog_payload()
     st = p["subtypes"]
     assert st["무기"][0] == "장검"          # 아이템
     assert "보스방" in st["던전"]           # 환경
     assert "버튼" in st["다크 판타지"]       # UI
+    assert "화염구" in st["화염"]           # 특수효과
+    assert p["rarity_colors"]["전설"] == "#f0be3c"  # 등급 배지색
+
+
+def test_item_art_asset_carries_rarity_variant(settings):
+    # 결과 카드 배지용: 등급 축 에셋은 variant(등급)를 담는다
+    req = GenerationRequest(subject="item", genre="fantasy", role="장검",
+                            assets=["item_art"], rarities=["전설", "극"])
+    res = pipeline.run_pipeline(req, settings, "job_badge")
+    variants = {a.variant for a in res.assets if a.kind == "item_art"}
+    assert variants == {"전설", "극"}
 
 
 def test_breathe_keeps_size_and_bottom(tmp_path):

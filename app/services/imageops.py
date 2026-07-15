@@ -152,19 +152,14 @@ def breathe(src: Path, dst: Path, phase: float, amp: float = 0.02) -> None:
 # ─────────────────────────────────────────────────────────────────────
 # 등급(rarity) 프레임 후처리 — 등급별 테두리를 확실히 입혀 차이가 항상 보이게
 # ─────────────────────────────────────────────────────────────────────
-# 등급별 (테두리색 RGB, 굵기 배수). 뒤로 갈수록 굵고 화려하게.
-_RARITY_FRAME = {
-    "일반":  ((150, 150, 150), 0),   # 프레임 없음
-    "고급":  ((200, 205, 210), 1),
-    "희귀":  ((70, 140, 240), 2),
-    "영웅":  ((165, 80, 230), 3),
-    "전설":  ((240, 190, 60), 4),
-    "초월":  ((80, 220, 220), 5),
-    "멸망":  ((200, 40, 55), 5),
-    "태초":  ((60, 200, 170), 6),
-    "무아":  ((245, 240, 210), 7),
-    "극":    ((255, 90, 210), 8),
-}
+# 등급별 프레임 굵기 레벨(색은 asset_catalog.RARITY_COLORS 단일 소스). 뒤로 갈수록 굵게.
+_RARITY_LEVEL = {"일반": 0, "고급": 1, "희귀": 2, "영웅": 3, "전설": 4,
+                 "초월": 5, "멸망": 5, "태초": 6, "무아": 7, "극": 8}
+
+
+def _hex_rgb(h: str) -> tuple[int, int, int]:
+    h = h.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
 def apply_rarity_frame(path: Path, rarity: str) -> None:
@@ -173,9 +168,11 @@ def apply_rarity_frame(path: Path, rarity: str) -> None:
     AI 결과와 무관하게 등급 차이가 항상 드러나도록(‘꼭 지켜지도록’) 하는 후처리.
     '일반'은 프레임 없음. 고등급일수록 굵고 이중선+은은한 내부 글로우.
     """
-    color, level = _RARITY_FRAME.get(rarity, ((150, 150, 150), 0))
+    from .asset_catalog import RARITY_COLORS
+    level = _RARITY_LEVEL.get(rarity, 0)
     if level <= 0:
         return
+    color = _hex_rgb(RARITY_COLORS.get(rarity, "#969696"))
     try:
         img = Image.open(path)
         mode = img.mode if img.mode in ("RGB", "RGBA") else "RGBA"

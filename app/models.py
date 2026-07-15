@@ -75,6 +75,7 @@ class GeneratedAsset(BaseModel):
     label: str
     demo: bool = False  # 데모(플레이스홀더) 여부
     is_image: bool = True  # UI 렌더링 힌트
+    variant: str = ""  # 변형/등급 라벨 (예: 전설) — 결과 카드 배지용
 
 
 class GenerationResult(BaseModel):
