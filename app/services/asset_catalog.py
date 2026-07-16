@@ -356,11 +356,14 @@ _SPECS: list[AssetSpec] = [
         desc="정면·측면·후면 모델 시트",
     ),
     AssetSpec(
-        "multiview_3d", "3D변환용 4방향", "character", (768, 768),
+        "multiview_3d", "3D변환용 4방향", "character", (768, 1024),
         "orthographic {variant} view of {name} standing straight in a neutral A-pose, "
         "{visual}, {style}, identical proportions and outfit in every view, "
-        "full body centered, flat even lighting, plain solid background — "
-        "clean reference sheet for image-to-3D reconstruction",
+        "the ENTIRE character from the very top of the head to the soles of the feet is "
+        "fully visible inside the frame with clear empty margin above the head and below "
+        "the feet, zoomed-out full-length shot, nothing cropped or cut off at any edge, "
+        "centered, flat even lighting, plain solid background — clean reference sheet for "
+        "image-to-3D reconstruction",
         placeholder="figure",
         variants=("정면(front)", "후면(back)", "좌측(left)", "우측(right)"),
         desc="이미지→3D 변환용 전·후·좌·우 4방향(앵커 일관성)",
