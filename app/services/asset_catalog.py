@@ -401,8 +401,11 @@ _SPECS: list[AssetSpec] = [
     ),
     AssetSpec(
         "anim_walk", "걷기 애니메이션", "animation", (512, 512),
-        "2D game side-view walk-cycle frame of {name}, {variant}, full body, "
-        "{visual}, {genre}, consistent character, side profile, plain background",
+        "strict flat SIDE-PROFILE 2D game walk-cycle frame of {name} facing right, "
+        "{variant}, full body head-to-toe, feet on the ground baseline, {visual}, {genre}, "
+        "consistent character, orthographic side view with the camera LOCKED, "
+        "identical scale and centered framing every frame, no rotation, no 3/4 view, "
+        "plain background",
         placeholder="figure",
         variant_pool=("contact left foot forward", "recoil down", "passing pose",
                       "high point up", "contact right foot forward", "recoil down 2",
@@ -411,8 +414,11 @@ _SPECS: list[AssetSpec] = [
     ),
     AssetSpec(
         "anim_attack", "공격 애니메이션", "animation", (512, 512),
-        "2D game side-view attack animation frame of {name}, {variant}, full body, "
-        "{visual}, {genre}, dynamic action, consistent character, plain background",
+        "strict flat SIDE-PROFILE 2D game attack frame of {name} facing right, "
+        "{variant}, full body head-to-toe, feet on the ground baseline, {visual}, {genre}, "
+        "dynamic melee action, consistent character, orthographic side view with the camera LOCKED, "
+        "identical scale and centered framing every frame, no rotation, no 3/4 view, "
+        "plain background",
         placeholder="figure",
         variant_pool=("ready stance", "wind-up back", "step forward start",
                       "full swing impact", "follow-through", "recovery to stance"),
