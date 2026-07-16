@@ -123,6 +123,10 @@ def generate_asset(
     w, h = spec.size
     size = (max(64, int(w * scale)), max(64, int(h * scale)))
     use_ref = reference
+    # 애니메이션 프레임 시퀀스(대기 제외)는 '순차 레퍼런스': 각 프레임이 직전
+    # 프레임을 참조해 캐릭터 일관성은 유지하되 포즈가 실제로 진행되게 한다.
+    # (고정 앵커만 쓰면 모든 프레임이 앵커의 서 있는 포즈로 회귀해 다리가 안 움직임.)
+    sequential = spec.is_anim and spec.key != "anim_idle"
     do_cutout = transparent and spec.cutout
     results: list[ImageResult] = []
     art_style = (getattr(concept, "art_style", "") or "").strip()
@@ -195,6 +199,13 @@ def generate_asset(
             palette=concept.color_palette,
             reference=use_ref, model=model,
         )
+        # 순차 레퍼런스: 방금 만든 프레임(컷아웃 전 원본)을 다음 프레임 레퍼런스로.
+        if sequential and is_real:
+            try:
+                from PIL import Image
+                use_ref = Image.open(out).convert("RGB")
+            except Exception:
+                pass
         if do_cutout and out.exists():
             imageops.make_transparent(out)
         results.append(ImageResult(path=out, label=label, demo=not is_real, variant=variant))
