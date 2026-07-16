@@ -112,6 +112,7 @@ IMAGE_MODELS = [
 
 # 아트 스타일 프리셋 (자유 입력도 가능)
 ART_STYLES = [
+    "cute big head chibi 3D game render, glossy, vibrant colors",
     "semi-realistic digital painting",
     "anime cel shading",
     "watercolor illustration",
