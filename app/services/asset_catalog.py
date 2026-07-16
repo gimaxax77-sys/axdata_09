@@ -401,30 +401,46 @@ _SPECS: list[AssetSpec] = [
     ),
     AssetSpec(
         "anim_walk", "걷기 애니메이션", "animation", (512, 512),
-        "strict flat SIDE-PROFILE 2D game walk-cycle frame of {name} facing right, "
-        "{variant}, full body head-to-toe, feet on the ground baseline, {visual}, {genre}, "
-        "consistent character, orthographic side view with the camera LOCKED, "
-        "identical scale and centered framing every frame, no rotation, no 3/4 view, "
+        "one frame of a smooth side-scroller WALK CYCLE — {name} in a strict flat SIDE "
+        "profile, facing right and walking to the right, {variant}, full body head-to-toe "
+        "with feet on the ground baseline, EMPTY HANDS and absolutely NO weapon or held "
+        "object, arms swinging naturally opposite to the legs, {visual}, {genre}, the EXACT "
+        "same character, outfit and colors as the reference — ONLY the leg and arm positions "
+        "change between frames, nothing else, orthographic side-view camera locked at "
+        "identical scale and centered framing, no rotation, no turning, no 3/4 view, "
         "plain background",
         placeholder="figure",
-        variant_pool=("contact, left foot forward", "down recoil, left leg bent",
-                      "passing pose, left leg lifting", "high point, left leg extending",
-                      "reach, left foot about to land", "contact, right foot forward",
-                      "down recoil, right leg bent", "passing pose, right leg lifting",
-                      "high point, right leg extending", "reach, right foot about to land"),
+        variant_pool=(
+            "right leg planted forward, left leg extended back, both feet on the ground",
+            "body lowered, left foot pushing off the ground behind",
+            "left leg lifting and swinging forward, passing under the body",
+            "left leg swinging past with the knee raised at mid-stride",
+            "left leg reaching forward, foot about to land ahead",
+            "left leg planted forward, right leg extended back, both feet on the ground",
+            "body lowered, right foot pushing off the ground behind",
+            "right leg lifting and swinging forward, passing under the body",
+            "right leg swinging past with the knee raised at mid-stride",
+            "right leg reaching forward, foot about to land ahead"),
         desc="걷기 사이클 프레임 시퀀스(최대 10) · 시트+GIF 자동",
     ),
     AssetSpec(
         "anim_attack", "공격 애니메이션", "animation", (512, 512),
-        "strict flat SIDE-PROFILE 2D game attack frame of {name} facing right, "
-        "{variant}, full body head-to-toe, feet on the ground baseline, {visual}, {genre}, "
-        "dynamic melee action, consistent character, orthographic side view with the camera LOCKED, "
-        "identical scale and centered framing every frame, no rotation, no 3/4 view, "
-        "plain background",
+        "one frame of a BARE-HANDED melee/energy attack — {name} in a strict flat SIDE "
+        "profile, facing right, {variant}, full body with feet on the ground baseline, "
+        "EMPTY HANDS with NO held weapon (strikes with fists and {genre} energy), {visual}, "
+        "{genre}, the EXACT same character, outfit and colors as the reference — ONLY the "
+        "body and arm pose changes between frames, orthographic side-view camera locked at "
+        "identical scale and centered framing, no rotation, no 3/4 view, plain background",
         placeholder="figure",
-        variant_pool=("ready stance", "wind-up back", "wind-up peak, weapon raised",
-                      "step forward start", "mid-swing forward", "full swing impact",
-                      "follow-through", "recovery to stance"),
+        variant_pool=(
+            "ready fighting stance with both fists raised",
+            "pulling the striking fist back, winding up",
+            "fist fully wound back, body coiled and leaning",
+            "stepping forward, striking fist beginning to thrust",
+            "striking fist thrusting forward at mid-strike",
+            "punch fully extended, energy burst bursting at the fist",
+            "striking fist starting to retract, follow-through",
+            "returning to the ready fighting stance"),
         desc="공격 모션 프레임 시퀀스(최대 8) · 시트+GIF 자동",
     ),
 
