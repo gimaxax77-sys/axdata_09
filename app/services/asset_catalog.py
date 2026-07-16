@@ -407,10 +407,12 @@ _SPECS: list[AssetSpec] = [
         "identical scale and centered framing every frame, no rotation, no 3/4 view, "
         "plain background",
         placeholder="figure",
-        variant_pool=("contact left foot forward", "recoil down", "passing pose",
-                      "high point up", "contact right foot forward", "recoil down 2",
-                      "passing pose 2", "high point up 2"),
-        desc="걷기 사이클 프레임 시퀀스 · 시트+GIF 자동",
+        variant_pool=("contact, left foot forward", "down recoil, left leg bent",
+                      "passing pose, left leg lifting", "high point, left leg extending",
+                      "reach, left foot about to land", "contact, right foot forward",
+                      "down recoil, right leg bent", "passing pose, right leg lifting",
+                      "high point, right leg extending", "reach, right foot about to land"),
+        desc="걷기 사이클 프레임 시퀀스(최대 10) · 시트+GIF 자동",
     ),
     AssetSpec(
         "anim_attack", "공격 애니메이션", "animation", (512, 512),
@@ -420,9 +422,10 @@ _SPECS: list[AssetSpec] = [
         "identical scale and centered framing every frame, no rotation, no 3/4 view, "
         "plain background",
         placeholder="figure",
-        variant_pool=("ready stance", "wind-up back", "step forward start",
-                      "full swing impact", "follow-through", "recovery to stance"),
-        desc="공격 모션 프레임 시퀀스 · 시트+GIF 자동",
+        variant_pool=("ready stance", "wind-up back", "wind-up peak, weapon raised",
+                      "step forward start", "mid-swing forward", "full swing impact",
+                      "follow-through", "recovery to stance"),
+        desc="공격 모션 프레임 시퀀스(최대 8) · 시트+GIF 자동",
     ),
 
     # ── 아이템 / 장비 ─────────────────────────────────────────────
