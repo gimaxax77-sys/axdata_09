@@ -243,13 +243,13 @@ ALL_ENTITIES = frozenset(ENTITY_TYPES)
 
 # 동일 캐릭터로 보여야 하는 에셋(앵커 이미지를 레퍼런스로 사용)
 _CHAR_REF_KEYS = frozenset({
-    "portrait", "fullbody", "expressions", "poses", "turnaround",
+    "portrait", "fullbody", "expressions", "poses", "turnaround", "multiview_3d",
     "pixel_sprite", "emote", "card_frame", "splash", "namecard",
     "anim_idle", "anim_walk", "anim_attack",
 })
 # 배경 제거(투명 알파) 대상 — 스프라이트/아이콘 컷아웃
 _CUTOUT_KEYS = frozenset({
-    "portrait", "fullbody", "expressions", "poses", "turnaround",
+    "portrait", "fullbody", "expressions", "poses", "turnaround", "multiview_3d",
     "pixel_sprite", "emblem", "emote", "companion",
     "item_art",
     "ui_icons", "ui_currency",
@@ -354,6 +354,16 @@ _SPECS: list[AssetSpec] = [
         placeholder="figure",
         variants=("정면", "측면", "후면"),
         desc="정면·측면·후면 모델 시트",
+    ),
+    AssetSpec(
+        "multiview_3d", "3D변환용 4방향", "character", (768, 768),
+        "orthographic {variant} view of {name} standing straight in a neutral A-pose, "
+        "{visual}, {style}, identical proportions and outfit in every view, "
+        "full body centered, flat even lighting, plain solid background — "
+        "clean reference sheet for image-to-3D reconstruction",
+        placeholder="figure",
+        variants=("정면(front)", "후면(back)", "좌측(left)", "우측(right)"),
+        desc="이미지→3D 변환용 전·후·좌·우 4방향(앵커 일관성)",
     ),
     AssetSpec(
         "emblem", "엠블럼 아이콘", "character", (512, 512),
