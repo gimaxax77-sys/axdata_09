@@ -110,3 +110,26 @@
 - 브리핑(01 2D+3D): 그리드 위주 방치형이라 전면 3D는 비용대비 나쁨. 권장=2D주력(그리드)+3D쇼케이스(1명 클로즈업)만. 마찰점=단일파일 빌드(play.html)에 three+glb 부담, expo-gl 유지보수.
 - 결정: **01은 당분간 2D 유지, 3D 보류.** → 05 ④2D렌더는 계속 주력(01이 2D). multiview_3d는 미래 3D전환 대비 자산으로 확보만.
 - 커밋: 0e5a9c1(multiview_3d).
+
+---
+
+## 2026-07-23 — 엘 로그 기사 정면 스프라이트 PixelLab 변환 (실패, 미완)
+- 요청: 엘 로그(axdata_11) 기사 정면 스프라이트를 09 아트 스튜디오 고화질 원화 → PixelLab 픽셀 변환으로 재생성. Gim 선택: knight 1명 파일럿 → 2→3→4단계 전부, 64px.
+- 진행:
+  1. `scripts/ref_for_pixellab.py`에 `front` 각도 추가. 배경 키잉이 안 되던 문제(회색 그라데이션+막힌 구역)를 프롬프트를 마젠타 #FF00FF 단색 배경으로 강제해 해결. 크로마키 스크립트로 다리 사이·팔 안쪽까지 깨끗이 제거 확인.
+  2. `create_portrait_character(direction=portrait_to_character, result_size=64)`에 **전신** 96px 투명본 투입 → **정체성 완전 소실**(어두운 강철+금장 기사 → 청록 파카 소년). 20 generations 소모.
+- 원인(핵심):
+  - **도구 스키마가 계약이다.** `create_portrait_character`의 `image`는 스키마에 "**a bust portrait**(얼굴~상반신 흉상)"로 명시돼 있었다. 나는 전신 그림을 넣었고, 96px 안에서 얼굴이 6~7px라 모델이 갑옷·투구를 못 읽고 전부 지어냈다.
+  - `agent_help`가 "전신 아트도 이 경로가 맞다"고 답했으나, **스키마 명시 문구 > 도우미 답변** 우선순위를 뒤집은 게 실수. 도우미 답변은 참고, 스키마가 정답.
+  - 입력을 96px로 줄인 것도 컨텍스트 한도 회피용 내 선택이었고 얼굴을 더 뭉갰다.
+- 상태: **잔량 13/40 (trial). Gim 지시로 중단.** 재시도하려면 (a)흉상 규격 입력으로 portrait_to_character 재실행(~20 gens, 현 잔량 부족) 또는 (b)기존 게임 픽셀 기사(assets/char/fantasy_pixel/knight.png)를 create_character mode=v3 reference로(2~9 gens, 이미 픽셀아트라 v3 조건 충족) 진행. 구독 상향 시 원안(09 흉상→portrait_character) 정상 재도전 가능.
+- 산출물 보존: `outputs/pixellab_ref_knight_front/` (fullbody.png=마젠타 정면 원화, cutout.png=투명 전신, pl_out.png=실패한 64px 결과). v1/v2 원화는 `_v1_gray`·`_v2_bad`로 보존.
+
+## 2026-07-26 — 신규 프리셋 `anim_idle_ground` (코어 커맨더 침식체/지면 오브젝트)
+- **추가 이유**: 기존 `anim_idle`은 캐릭터 측면뷰(full body side-view, feet on ground) 전제라, 3/4 탑다운·발 없는 지면 오브젝트(바위더미형 몬스터)엔 안 맞음.
+- **변경 2파일**(둘 다 additive, 기존 동작 불변):
+  - `asset_catalog.py`: `anim_idle_ground` AssetSpec 신설(category=animation, 512², 3/4 top-down 프롬프트, 6변형 at rest/swelling/cracks pulsing 등, entities=monster). `_CHAR_REF_KEYS`·`_CUTOUT_KEYS`·`_ANIM_KEYS` 세 세트에 등록.
+  - `gemini_service.py`: idle breathe 특례 조건을 `spec.key == "anim_idle"` → `spec.key.startswith("anim_idle")`로 일반화(순차 레퍼런스 제외 조건도 동일). 기존 anim_idle 동작 그대로.
+- **동작**: anim_idle 계열 = 기준 1장만 Gemini 실생성 + 나머지 `imageops.breathe` 절차 합성(프레임 떨림 방지). 컷아웃 투명·시트·GIF 자동.
+- **검증**: `scripts/blight_ashling_trial.py`(잿가루 무리, 레퍼런스=코어커맨더 idle_01) 실생성 6장 성공(데모0), 512 RGBA 투명, 사방 여백(잘림 없음). 산출 `outputs/blight_ashling_idle/`.
+- 주의: `python -m pytest` 스모크가 API 키 존재 시 실생성 시도로 매우 느림/행(사전 설계, 본 변경 무관). 기능 검증은 위 실트라이얼로 대체.
