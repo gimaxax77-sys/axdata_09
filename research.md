@@ -132,4 +132,35 @@
   - `gemini_service.py`: idle breathe 특례 조건을 `spec.key == "anim_idle"` → `spec.key.startswith("anim_idle")`로 일반화(순차 레퍼런스 제외 조건도 동일). 기존 anim_idle 동작 그대로.
 - **동작**: anim_idle 계열 = 기준 1장만 Gemini 실생성 + 나머지 `imageops.breathe` 절차 합성(프레임 떨림 방지). 컷아웃 투명·시트·GIF 자동.
 - **검증**: `scripts/blight_ashling_trial.py`(잿가루 무리, 레퍼런스=코어커맨더 idle_01) 실생성 6장 성공(데모0), 512 RGBA 투명, 사방 여백(잘림 없음). 산출 `outputs/blight_ashling_idle/`.
-- 주의: `python -m pytest` 스모크가 API 키 존재 시 실생성 시도로 매우 느림/행(사전 설계, 본 변경 무관). 기능 검증은 위 실트라이얼로 대체.
+- 주의: `python -m pytest` 스모크가 API 키 존재 시 실생성 시도로 매우 느림/행(사전 설계, 본 변경 무관). 기능 검증은 위 실트라이얼로 대체. → **원인·우회법은 아래 2026-07-30 항목에서 확정.**
+
+## 2026-07-30 — 지면 오브젝트 4모션 완성 + 미커밋분 정리 + pytest 행 원인 규명
+- **요청**: "상태체크" → 미커밋 상태 점검 후 (1)커밋 분리 (2)research 기록 (3)프레임 수 불일치 수정, 그리고 커밋·푸시.
+
+### 점검 결과 — 3일간 트리에 떠 있던 미커밋 작업
+07-26 22:19 이후 커밋 없이 남아 있던 작업. **동작·산출물까지 검증된 상태였으나 기록이 없었음.**
+- 신규 `app/services/motion.py` — 지면 오브젝트(팔다리 없는 침식체) 절차 모션 합성. base 1장에서 스쿼시/런지/흔들림/스케일 변형 + 보라 균열 발광 펄스 + 파편(particles). 대기=루프, 나머지=1회 재생.
+- `asset_catalog.py` — `anim_attack_ground`·`anim_skill_ground`·`anim_death_ground` 3종 추가(07-26의 `anim_idle_ground`와 합쳐 4모션 완성). 세 세트(`_CHAR_REF_KEYS`·`_CUTOUT_KEYS`·`_ANIM_KEYS`)에 등록.
+- `gemini_service.py` — 07-26의 `startswith("anim_idle")` 임시 조건을 `_FRAME_SYNTH_KEYS` 집합 + `_GROUND_MOTION` 매핑으로 정식화. 캐릭터 대기=`imageops.breathe`, 지면 4종=`motion.synth`로 분기(`_synth_frame`).
+- `scripts/blight_4motion.py`(신규) · `blight_ashling_trial.py`(07-26분) · `ref_for_pixellab.py`(07-23분) · `showcase_trial.py` noref 옵션.
+
+### 비용 구조 (이 방식의 핵심 이점)
+4모션 전부 **AI 호출 1회**(base 1장)로 끝난다. 38프레임 중 37장이 절차 합성이라 프레임 떨림 0 + 실비용 1장분.
+
+### 프레임 수 불일치 수정 (요청 3번)
+- **문제**: `motion.frame_count()`(idle 12)와 카탈로그 `variant_pool` 길이(idle_ground 6)가 **같은 값을 두 곳에서** 정의. 스크립트로 뽑으면 12프레임, 웹 파이프라인으로 뽑으면 6프레임.
+- **수정**: `frame_count()` 삭제(유일 호출처가 스크립트 1곳). 카탈로그 `variant_pool` 길이를 단일 진실로 삼고 스크립트가 `cat.CATALOG[f"anim_{kind}_ground"]`에서 읽음. `anim_idle_ground` 풀을 12칸(`idle f1..f12`)으로 맞추고, 프롬프트에서 `{variant}` 제거(나머지 3종과 동일 — 어차피 프레임 1장만 AI라 변형 문구가 무의미).
+- **정확히 말하면** 풀 길이는 *상한*이다. 실제 개수는 `variant_count`가 정하고 `resolve_variants`가 `pool[:count]`로 자른다. `synth`가 phase(0~1) 기반이라 개수가 줄면 모션을 성기게 샘플링할 뿐 깨지지 않는다(코드 주석에 명시).
+- **검증**: 재생성 결과 idle 12·attack 8·skill 10·death 8 — 수정 전과 동일. 산출물 불변.
+
+### pytest 행(hang) 원인 확정 — 07-26에 "원인 불명"으로 남긴 것
+- **원인**: `app/config.py:17`의 `env_file=".env"` 는 **현재 작업 디렉터리 기준 상대경로**다. 프로젝트 폴더에서 pytest를 돌리면 실제 API 키가 로드돼 스모크가 실생성을 시도한다(10분 초과 확인, 출력 0바이트).
+- **함정**: PowerShell에서 `$env:OPENAI_API_KEY=""` 는 값을 비우는 게 아니라 **변수를 삭제**한다 → `.env` 폴백으로 되돌아가 무용지물.
+- **우회법**(다른 폴더에서 실행 → `.env` 미발견 → 데모 모드):
+  ```
+  cd <아무 다른 폴더>; $env:PYTHONPATH="D:\.CODE\AXdata\axdata_09_art studio"; python -m pytest -q "D:\.CODE\AXdata\axdata_09_art studio\tests\test_smoke.py"
+  ```
+- **결과**: **57 passed / 8.3초.** (프로젝트 폴더에서는 600초+ 행.)
+
+### 산출물
+`outputs/blight_ashling_4motion/` — 38프레임 + 시트 4 + GIF 4 + atlas 4 + `_review4.html`(비교용).
