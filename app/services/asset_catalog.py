@@ -245,7 +245,8 @@ ALL_ENTITIES = frozenset(ENTITY_TYPES)
 _CHAR_REF_KEYS = frozenset({
     "portrait", "fullbody", "expressions", "poses", "turnaround", "multiview_3d",
     "pixel_sprite", "emote", "card_frame", "splash", "namecard",
-    "anim_idle", "anim_walk", "anim_attack",
+    "anim_idle", "anim_idle_ground", "anim_attack_ground",
+    "anim_skill_ground", "anim_death_ground", "anim_walk", "anim_attack",
 })
 # 배경 제거(투명 알파) 대상 — 스프라이트/아이콘 컷아웃
 _CUTOUT_KEYS = frozenset({
@@ -253,11 +254,13 @@ _CUTOUT_KEYS = frozenset({
     "pixel_sprite", "emblem", "emote", "companion",
     "item_art",
     "ui_icons", "ui_currency",
-    "anim_idle", "anim_walk", "anim_attack",
+    "anim_idle", "anim_idle_ground", "anim_attack_ground",
+    "anim_skill_ground", "anim_death_ground", "anim_walk", "anim_attack",
     "vfx_art", "vfx_element", "vfx_skill", "vfx_hit",
 })
 # 애니메이션 프레임 시퀀스 에셋 (스프라이트 시트 + GIF 자동 생성)
-_ANIM_KEYS = frozenset({"anim_idle", "anim_walk", "anim_attack"})
+_ANIM_KEYS = frozenset({"anim_idle", "anim_idle_ground", "anim_attack_ground",
+                        "anim_skill_ground", "anim_death_ground", "anim_walk", "anim_attack"})
 
 
 @dataclass(frozen=True)
@@ -401,6 +404,52 @@ _SPECS: list[AssetSpec] = [
         variant_pool=("neutral standing", "breathing in slightly", "subtle shift",
                       "breathing out", "settle back", "small idle sway"),
         desc="대기(Idle) 프레임 시퀀스 · 시트+GIF 자동",
+    ),
+    # 코어 커맨더 — 침식체/지면 오브젝트 대기 (3/4 탑다운, 발 없는 정적 개체)
+    AssetSpec(
+        "anim_idle_ground", "지면 오브젝트 대기(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name}, a stationary ground creature/object at rest — "
+        "{visual}, {style}, {genre}, resting on the ground with NO legs and NO walking, "
+        "seen slightly from above, consistent design, centered with clear empty margin on all four "
+        "sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"idle f{i+1}" for i in range(12)),
+        entities=frozenset({"monster"}),
+        desc="지면 오브젝트/침식체 대기(3/4 탑다운) · 절차 합성 · 시트+GIF · 투명",
+    ),
+    # 지면 오브젝트 4모션(대기 외) — 기준 1장만 AI, 나머지는 motion 절차 합성(발광·파편).
+    # 이 4종은 variant_pool 길이 = 최대 프레임 수(단일 진실, 실제 개수는 variant_count).
+    # 합성이 phase 기반이라 개수가 줄어도 모션 전체를 성기게 샘플링할 뿐 깨지지 않는다.
+    # 변형 문구는 프롬프트에 안 들어간다(프레임 슬롯 이름일 뿐).
+    AssetSpec(
+        "anim_attack_ground", "지면 일반공격(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name} at rest, a stationary ground creature — "
+        "{visual}, {style}, {genre}, no legs, seen slightly from above, centered with clear "
+        "empty margin on all four sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"attack f{i+1}" for i in range(8)),
+        entities=frozenset({"monster"}),
+        desc="일반공격(스쿼시→런지→발광 플래시+파편) · 절차 합성 · 시트+GIF · 투명",
+    ),
+    AssetSpec(
+        "anim_skill_ground", "지면 스킬공격(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name} at rest, a stationary ground creature — "
+        "{visual}, {style}, {genre}, no legs, seen slightly from above, centered with clear "
+        "empty margin on all four sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"skill f{i+1}" for i in range(10)),
+        entities=frozenset({"monster"}),
+        desc="스킬공격(차징→방사 버스트+파편) · 절차 합성 · 시트+GIF · 투명",
+    ),
+    AssetSpec(
+        "anim_death_ground", "지면 죽음(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name} at rest, a stationary ground creature — "
+        "{visual}, {style}, {genre}, no legs, seen slightly from above, centered with clear "
+        "empty margin on all four sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"death f{i+1}" for i in range(8)),
+        entities=frozenset({"monster"}),
+        desc="죽음(셔더→붕괴 페이드+낙하 파편) · 절차 합성 · 시트+GIF · 투명",
     ),
     AssetSpec(
         "anim_walk", "걷기 애니메이션", "animation", (512, 512),
