@@ -2,8 +2,8 @@
 """픽셀 초상(512x512)을 앵커로 동일 캐릭터를 고화질 fullbody 일러스트로 리드로우.
 
 사용법:
-    python scripts/showcase_trial.py            # 기사(knight) 1장 생성
-    python scripts/showcase_trial.py mage       # 다른 id 지정
+    python scripts/showcase_trial.py            # 기사(knight) 경로 B(레퍼런스) 1장
+    python scripts/showcase_trial.py knight noref  # 경로 A(텍스트만, 레퍼런스 없음)
 
 레퍼런스는 axdata_11의 assets/char/fantasy_pixel/<id>.png 를 쓴다.
 변형 1장만(variant_count=1) 생성해 비용 최소화. 결과·실비용을 출력한다.
@@ -40,7 +40,8 @@ def main() -> int:
         print(f"레퍼런스 없음: {ref_path}")
         return 1
 
-    reference = Image.open(ref_path).convert("RGBA")
+    noref = "noref" in sys.argv[2:]
+    reference = None if noref else Image.open(ref_path).convert("RGBA")
     settings = get_settings()
     spec = cat.CATALOG["fullbody"]  # 전신 768x1024 — 쇼케이스용 큰 그림
 
@@ -53,10 +54,12 @@ def main() -> int:
         art_style="high-quality stylized fantasy game splash art, painterly, dramatic lighting, clean silhouette",
     )
 
-    out_dir = Path(__file__).resolve().parent.parent / "outputs" / f"showcase_trial_{hid}"
+    tag = "noref" if noref else "ref"
+    out_dir = Path(__file__).resolve().parent.parent / "outputs" / f"showcase_trial_{hid}_{tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[생성] {info['name']}({hid}) · fullbody 768x1024 · 레퍼런스 {ref_path.name} · img2img(동일 캐릭터)")
+    mode = "경로A 텍스트만(레퍼런스 없음)" if noref else f"경로B img2img(레퍼런스 {ref_path.name}, 동일 캐릭터)"
+    print(f"[생성] {info['name']}({hid}) · fullbody 768x1024 · {mode}")
     results = generate_asset(
         spec, concept, out_dir, settings,
         variant_count=1, reference=reference, style_only=False,
