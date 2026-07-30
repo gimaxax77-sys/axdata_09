@@ -264,6 +264,10 @@ textarea { resize: vertical; }
 .edit-btn { background: none; border: none; cursor: pointer; color: var(--accent2b);
   font-size: 13px; font-family: inherit; padding: 0; line-height: 1; }
 .edit-btn:hover { color: var(--accent); }
+.regenp-btn { background: none; border: none; cursor: pointer; color: var(--accent2b);
+  font-size: 13px; font-family: inherit; padding: 0; line-height: 1; }
+.regenp-btn:hover { color: var(--accent); }
+.regenp-btn:disabled { opacity: .5; cursor: default; }
 
 /* 이미지 편집 모달 */
 .edit-modal { position: fixed; inset: 0; z-index: 100; display: flex;

@@ -348,6 +348,7 @@ def regenerate_asset(req: RegenerateRequest, settings: Settings,
         scale=req.image_scale, variant_count=req.variant_count,
         reference=None, style_only=False,
         transparent=req.transparent, model=req.image_model,
+        extra_prompt=req.extra_prompt,
     )
     new_assets: list[GeneratedAsset] = []
     demo_art = any(r.demo for r in results)

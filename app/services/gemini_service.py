@@ -19,7 +19,7 @@ from ..config import Settings
 from ..logging_config import get_logger
 from ..models import EntityConcept
 from . import asset_catalog as cat
-from . import imageops, placeholders
+from . import imageops, motion, placeholders
 
 # 후처리 함수는 파이프라인/스모크 테스트가 gemini_service 경유로 호출할 수 있어
 # 하위 호환 별칭으로 재노출한다.
@@ -95,6 +95,22 @@ def _openai_client(api_key: str):
 # ─────────────────────────────────────────────────────────────────────
 # 공개 API
 # ─────────────────────────────────────────────────────────────────────
+# 애니 프레임을 AI 대신 base 에서 절차 합성하는 키 — 캐릭터 대기 + 지면 오브젝트 4모션.
+_GROUND_MOTION = {
+    "anim_idle_ground": "idle", "anim_attack_ground": "attack",
+    "anim_skill_ground": "skill", "anim_death_ground": "death",
+}
+_FRAME_SYNTH_KEYS = frozenset({"anim_idle"} | set(_GROUND_MOTION))
+
+
+def _synth_frame(key: str, base_path: Path, out: Path, phase: float) -> None:
+    """i>0 프레임을 base 에서 절차 합성(떨림 방지). 캐릭터 대기=호흡, 지면=모션."""
+    if key == "anim_idle":
+        imageops.breathe(base_path, out, phase=phase)
+    else:
+        motion.synth(_GROUND_MOTION[key], base_path, out, phase=phase)
+
+
 def generate_asset(
     spec: cat.AssetSpec,
     concept: EntityConcept,
@@ -108,6 +124,7 @@ def generate_asset(
     model: str = "",
     variants_override: "list[str] | None" = None,
     variant_styles: "dict | None" = None,
+    extra_prompt: str = "",
 ) -> list[ImageResult]:
     """스펙 하나에 대한 이미지(들)를 생성. 다변형이면 여러 장.
 
@@ -122,6 +139,10 @@ def generate_asset(
     w, h = spec.size
     size = (max(64, int(w * scale)), max(64, int(h * scale)))
     use_ref = reference
+    # 애니메이션 프레임 시퀀스(대기 제외)는 '순차 레퍼런스': 각 프레임이 직전
+    # 프레임을 참조해 캐릭터 일관성은 유지하되 포즈가 실제로 진행되게 한다.
+    # (고정 앵커만 쓰면 모든 프레임이 앵커의 서 있는 포즈로 회귀해 다리가 안 움직임.)
+    sequential = spec.is_anim and spec.key not in _FRAME_SYNTH_KEYS
     do_cutout = transparent and spec.cutout
     results: list[ImageResult] = []
     art_style = (getattr(concept, "art_style", "") or "").strip()
@@ -131,8 +152,8 @@ def generate_asset(
         label = f"{spec.label} · {variant}" if variant else spec.label
         # 대기 애니메이션: 프레임마다 AI가 크기·구도를 다르게 그려 흔들리는 문제를
         # 막기 위해 기준 1장만 실제 생성하고, 나머지는 미세 호흡을 절차적으로 합성한다.
-        if spec.key == "anim_idle" and multi and i > 0:
-            imageops.breathe(results[0].path, out, phase=i / len(variants))
+        if spec.key in _FRAME_SYNTH_KEYS and multi and i > 0:
+            _synth_frame(spec.key, results[0].path, out, phase=i / len(variants))
             results.append(ImageResult(path=out, label=label,
                                        demo=results[0].demo, variant=variant))
             continue
@@ -184,6 +205,9 @@ def generate_asset(
                 )
         if do_cutout:
             prompt += ", isolated subject on a flat solid plain background"
+        # 사용자 추가 지시(에셋별) — 맨 끝에 강조로 반영. 안전장치는 위에서 유지.
+        if extra_prompt.strip():
+            prompt += f". {extra_prompt.strip()}"
         is_real = _generate_image(
             prompt, out, size, settings,
             placeholder=spec.placeholder,
@@ -191,6 +215,13 @@ def generate_asset(
             palette=concept.color_palette,
             reference=use_ref, model=model,
         )
+        # 순차 레퍼런스: 방금 만든 프레임(컷아웃 전 원본)을 다음 프레임 레퍼런스로.
+        if sequential and is_real:
+            try:
+                from PIL import Image
+                use_ref = Image.open(out).convert("RGB")
+            except Exception:
+                pass
         if do_cutout and out.exists():
             imageops.make_transparent(out)
         results.append(ImageResult(path=out, label=label, demo=not is_real, variant=variant))

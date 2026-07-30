@@ -112,6 +112,7 @@ IMAGE_MODELS = [
 
 # 아트 스타일 프리셋 (자유 입력도 가능)
 ART_STYLES = [
+    "cute big head chibi 3D game render, glossy, vibrant colors",
     "semi-realistic digital painting",
     "anime cel shading",
     "watercolor illustration",
@@ -242,21 +243,24 @@ ALL_ENTITIES = frozenset(ENTITY_TYPES)
 
 # 동일 캐릭터로 보여야 하는 에셋(앵커 이미지를 레퍼런스로 사용)
 _CHAR_REF_KEYS = frozenset({
-    "portrait", "fullbody", "expressions", "poses", "turnaround",
+    "portrait", "fullbody", "expressions", "poses", "turnaround", "multiview_3d",
     "pixel_sprite", "emote", "card_frame", "splash", "namecard",
-    "anim_idle", "anim_walk", "anim_attack",
+    "anim_idle", "anim_idle_ground", "anim_attack_ground",
+    "anim_skill_ground", "anim_death_ground", "anim_walk", "anim_attack",
 })
 # 배경 제거(투명 알파) 대상 — 스프라이트/아이콘 컷아웃
 _CUTOUT_KEYS = frozenset({
-    "portrait", "fullbody", "expressions", "poses", "turnaround",
+    "portrait", "fullbody", "expressions", "poses", "turnaround", "multiview_3d",
     "pixel_sprite", "emblem", "emote", "companion",
     "item_art",
     "ui_icons", "ui_currency",
-    "anim_idle", "anim_walk", "anim_attack",
+    "anim_idle", "anim_idle_ground", "anim_attack_ground",
+    "anim_skill_ground", "anim_death_ground", "anim_walk", "anim_attack",
     "vfx_art", "vfx_element", "vfx_skill", "vfx_hit",
 })
 # 애니메이션 프레임 시퀀스 에셋 (스프라이트 시트 + GIF 자동 생성)
-_ANIM_KEYS = frozenset({"anim_idle", "anim_walk", "anim_attack"})
+_ANIM_KEYS = frozenset({"anim_idle", "anim_idle_ground", "anim_attack_ground",
+                        "anim_skill_ground", "anim_death_ground", "anim_walk", "anim_attack"})
 
 
 @dataclass(frozen=True)
@@ -355,6 +359,19 @@ _SPECS: list[AssetSpec] = [
         desc="정면·측면·후면 모델 시트",
     ),
     AssetSpec(
+        "multiview_3d", "3D변환용 4방향", "character", (768, 1024),
+        "orthographic {variant} view of {name} standing straight in a neutral A-pose, "
+        "{visual}, {style}, identical proportions and outfit in every view, "
+        "the ENTIRE character from the very top of the head to the soles of the feet is "
+        "fully visible inside the frame with clear empty margin above the head and below "
+        "the feet, zoomed-out full-length shot, nothing cropped or cut off at any edge, "
+        "centered, flat even lighting, plain solid background — clean reference sheet for "
+        "image-to-3D reconstruction",
+        placeholder="figure",
+        variants=("정면(front)", "후면(back)", "좌측(left)", "우측(right)"),
+        desc="이미지→3D 변환용 전·후·좌·우 4방향(앵커 일관성)",
+    ),
+    AssetSpec(
         "emblem", "엠블럼 아이콘", "character", (512, 512),
         "minimal emblem icon representing {name}, {visual} theme, "
         "{genre} crest, flat vector, centered, plain background",
@@ -388,24 +405,95 @@ _SPECS: list[AssetSpec] = [
                       "breathing out", "settle back", "small idle sway"),
         desc="대기(Idle) 프레임 시퀀스 · 시트+GIF 자동",
     ),
+    # 코어 커맨더 — 침식체/지면 오브젝트 대기 (3/4 탑다운, 발 없는 정적 개체)
+    AssetSpec(
+        "anim_idle_ground", "지면 오브젝트 대기(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name}, a stationary ground creature/object at rest — "
+        "{visual}, {style}, {genre}, resting on the ground with NO legs and NO walking, "
+        "seen slightly from above, consistent design, centered with clear empty margin on all four "
+        "sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"idle f{i+1}" for i in range(12)),
+        entities=frozenset({"monster"}),
+        desc="지면 오브젝트/침식체 대기(3/4 탑다운) · 절차 합성 · 시트+GIF · 투명",
+    ),
+    # 지면 오브젝트 4모션(대기 외) — 기준 1장만 AI, 나머지는 motion 절차 합성(발광·파편).
+    # 이 4종은 variant_pool 길이 = 최대 프레임 수(단일 진실, 실제 개수는 variant_count).
+    # 합성이 phase 기반이라 개수가 줄어도 모션 전체를 성기게 샘플링할 뿐 깨지지 않는다.
+    # 변형 문구는 프롬프트에 안 들어간다(프레임 슬롯 이름일 뿐).
+    AssetSpec(
+        "anim_attack_ground", "지면 일반공격(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name} at rest, a stationary ground creature — "
+        "{visual}, {style}, {genre}, no legs, seen slightly from above, centered with clear "
+        "empty margin on all four sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"attack f{i+1}" for i in range(8)),
+        entities=frozenset({"monster"}),
+        desc="일반공격(스쿼시→런지→발광 플래시+파편) · 절차 합성 · 시트+GIF · 투명",
+    ),
+    AssetSpec(
+        "anim_skill_ground", "지면 스킬공격(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name} at rest, a stationary ground creature — "
+        "{visual}, {style}, {genre}, no legs, seen slightly from above, centered with clear "
+        "empty margin on all four sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"skill f{i+1}" for i in range(10)),
+        entities=frozenset({"monster"}),
+        desc="스킬공격(차징→방사 버스트+파편) · 절차 합성 · 시트+GIF · 투명",
+    ),
+    AssetSpec(
+        "anim_death_ground", "지면 죽음(3/4 탑다운)", "animation", (512, 512),
+        "3/4 top-down view game sprite of {name} at rest, a stationary ground creature — "
+        "{visual}, {style}, {genre}, no legs, seen slightly from above, centered with clear "
+        "empty margin on all four sides, plain background",
+        placeholder="figure",
+        variant_pool=tuple(f"death f{i+1}" for i in range(8)),
+        entities=frozenset({"monster"}),
+        desc="죽음(셔더→붕괴 페이드+낙하 파편) · 절차 합성 · 시트+GIF · 투명",
+    ),
     AssetSpec(
         "anim_walk", "걷기 애니메이션", "animation", (512, 512),
-        "2D game side-view walk-cycle frame of {name}, {variant}, full body, "
-        "{visual}, {genre}, consistent character, side profile, plain background",
+        "one frame of a smooth side-scroller WALK CYCLE — {name} in a strict flat SIDE "
+        "profile, facing right and walking to the right, {variant}, full body head-to-toe "
+        "with feet on the ground baseline, EMPTY HANDS and absolutely NO weapon or held "
+        "object, arms swinging naturally opposite to the legs, {visual}, {genre}, the EXACT "
+        "same character, outfit and colors as the reference — ONLY the leg and arm positions "
+        "change between frames, nothing else, orthographic side-view camera locked at "
+        "identical scale and centered framing, no rotation, no turning, no 3/4 view, "
+        "plain background",
         placeholder="figure",
-        variant_pool=("contact left foot forward", "recoil down", "passing pose",
-                      "high point up", "contact right foot forward", "recoil down 2",
-                      "passing pose 2", "high point up 2"),
-        desc="걷기 사이클 프레임 시퀀스 · 시트+GIF 자동",
+        variant_pool=(
+            "right leg planted forward, left leg extended back, both feet on the ground",
+            "body lowered, left foot pushing off the ground behind",
+            "left leg lifting and swinging forward, passing under the body",
+            "left leg swinging past with the knee raised at mid-stride",
+            "left leg reaching forward, foot about to land ahead",
+            "left leg planted forward, right leg extended back, both feet on the ground",
+            "body lowered, right foot pushing off the ground behind",
+            "right leg lifting and swinging forward, passing under the body",
+            "right leg swinging past with the knee raised at mid-stride",
+            "right leg reaching forward, foot about to land ahead"),
+        desc="걷기 사이클 프레임 시퀀스(최대 10) · 시트+GIF 자동",
     ),
     AssetSpec(
         "anim_attack", "공격 애니메이션", "animation", (512, 512),
-        "2D game side-view attack animation frame of {name}, {variant}, full body, "
-        "{visual}, {genre}, dynamic action, consistent character, plain background",
+        "one frame of a BARE-HANDED melee/energy attack — {name} in a strict flat SIDE "
+        "profile, facing right, {variant}, full body with feet on the ground baseline, "
+        "EMPTY HANDS with NO held weapon (strikes with fists and {genre} energy), {visual}, "
+        "{genre}, the EXACT same character, outfit and colors as the reference — ONLY the "
+        "body and arm pose changes between frames, orthographic side-view camera locked at "
+        "identical scale and centered framing, no rotation, no 3/4 view, plain background",
         placeholder="figure",
-        variant_pool=("ready stance", "wind-up back", "step forward start",
-                      "full swing impact", "follow-through", "recovery to stance"),
-        desc="공격 모션 프레임 시퀀스 · 시트+GIF 자동",
+        variant_pool=(
+            "ready fighting stance with both fists raised",
+            "pulling the striking fist back, winding up",
+            "fist fully wound back, body coiled and leaning",
+            "stepping forward, striking fist beginning to thrust",
+            "striking fist thrusting forward at mid-strike",
+            "punch fully extended, energy burst bursting at the fist",
+            "striking fist starting to retract, follow-through",
+            "returning to the ready fighting stance"),
+        desc="공격 모션 프레임 시퀀스(최대 8) · 시트+GIF 자동",
     ),
 
     # ── 아이템 / 장비 ─────────────────────────────────────────────

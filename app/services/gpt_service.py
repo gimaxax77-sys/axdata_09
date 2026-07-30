@@ -55,9 +55,11 @@ and attire. For example: wuxia = traditional East-Asian martial-arts robes /
 hanbok-hanfu style flowing garments (NOT western plate armor); sci-fi =
 futuristic high-tech suit; cyberpunk = neon augmented streetwear; steampunk =
 Victorian brass-and-gear attire; fairytale = storybook costume. Describe the
-outfit AND any weapon concretely so both clearly match the genre (e.g. wuxia
-swords = slender jian or curved dao, NOT western broadswords; sci-fi = energy
-weapons, NOT medieval swords).
+OUTFIT concretely to match the genre. By DEFAULT the character holds NO weapon
+and keeps empty, relaxed hands with arms lowered naturally at the sides
+(weapons and props are generated separately), UNLESS the brief's keywords
+explicitly ask for a held weapon. Do NOT add a full face-hiding helmet; keep
+the face and hair fully visible.
 
 Return ONLY a JSON object with EXACTLY these keys:
 {{

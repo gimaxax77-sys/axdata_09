@@ -1327,10 +1327,23 @@ $("#result").addEventListener("click", async (e) => {
     return;
   }
 
+  const pBtn = e.target.closest(".regenp-btn");
+  if (pBtn && CURRENT_JOB_ID) {
+    const card = pBtn.closest(".asset-card");
+    const prev = card.dataset.extraPrompt || "";
+    const extra = prompt("이 에셋에만 덧붙일 추가 지시를 입력하세요 (영어 권장).\n예: glowing blue aura, battle-worn scratches", prev);
+    if (extra === null) return;  // 취소
+    card.dataset.extraPrompt = extra;
+    await regenerateCard(pBtn, card, pBtn.dataset.regen, extra.trim());
+    return;
+  }
   const btn = e.target.closest(".regen-btn");
   if (!btn || !CURRENT_JOB_ID) return;
-  const kind = btn.dataset.regen;
-  const card = btn.closest(".asset-card");
+  await regenerateCard(btn, btn.closest(".asset-card"), btn.dataset.regen, "");
+});
+
+// 카드 하나를 (추가 지시 포함) 다시 생성하고 이미지를 즉시 갱신
+async function regenerateCard(btn, card, kind, extraPrompt) {
   const fd = new FormData($("#gen-form"));
   const payload = {
     asset_key: kind,
@@ -1339,7 +1352,9 @@ $("#result").addEventListener("click", async (e) => {
     transparent: fd.get("transparent") !== null,
     style_lock: fd.get("style_lock") !== null,
     image_model: fd.get("image_model") || "",
+    extra_prompt: extraPrompt || "",
   };
+  const label = btn.textContent;
   btn.disabled = true;
   btn.textContent = "…";
   try {
@@ -1363,9 +1378,9 @@ $("#result").addEventListener("click", async (e) => {
     alert("재생성 실패: " + err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = "↻";
+    btn.textContent = label;
   }
-});
+}
 
 // ── 결과 렌더링 ──────────────────────────────────────────
 function renderResult(data) {
@@ -1415,6 +1430,7 @@ function renderResult(data) {
               ${kindCounts[x.kind] > 1 ? `<button type="button" class="compare-btn" data-compare="${x.kind}" title="변형 비교·채택 (${kindCounts[x.kind]}장)">⊞</button>` : ""}
               <button type="button" class="edit-btn" data-edit="${fnOf(x.path)}" title="편집 (크롭·배경·보정)">✎</button>
               ${regenKeys.has(x.kind) ? `<button type="button" class="regen-btn" data-regen="${x.kind}" title="이 에셋만 다시 생성">↻</button>` : ""}
+              ${regenKeys.has(x.kind) ? `<button type="button" class="regenp-btn" data-regen="${x.kind}" title="프롬프트 추가 지시 후 다시 생성">✎↻</button>` : ""}
               <a href="${FILES}${x.path}" download>⬇</a></span>
           </div>
         </div>`;
