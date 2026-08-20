@@ -8,7 +8,17 @@
 
 ## 이 프로젝트 전용 규칙
 
-1. **테스트 명령**: `python -m pytest` (공통 규칙 7번의 이 프로젝트 명령 — 다른 프로젝트와 다릅니다).
+1. **테스트 명령** (공통 규칙 7번의 이 프로젝트 명령 — 다른 프로젝트와 다릅니다).
+   ⛔ **09 폴더 안에서 `python -m pytest` 를 돌리지 마십시오.** `app/config.py:17` 의 `env_file=".env"` 가
+   **cwd 상대경로**라 09 안이면 실 API 키가 로드돼 **실생성·과금·600초+ 행**이 됩니다(출력이 0바이트라 멈춘 줄도 모릅니다).
+   ⛔ `$env:OPENAI_API_KEY=""` 로 끄는 것도 안 됩니다 — PowerShell 은 **변수를 삭제**해 `.env` 폴백으로 키가 되살아납니다.
+   **차단 수단은 「cwd 를 09 밖으로 옮기기」 하나뿐입니다.** 아래가 유일한 안전 실행법입니다(실측 57 passed / 8.3초 / 비용 0).
+   ```
+   cd C:\Users\gimsf\AppData\Local\Temp
+   $env:PYTHONPATH="D:\.CODE\AXdata\axdata_09_art studio"
+   python -m pytest -q "D:\.CODE\AXdata\axdata_09_art studio\tests\test_smoke.py"
+   ```
+   `PYTHONPATH` 가 없으면 `app` 패키지를 못 찾습니다(`tests/` 에 `__init__.py` 없음). `cd` 는 반드시 절대경로로 씁니다.
 
 ## 프로젝트 개요
 
@@ -27,7 +37,7 @@
 - 로깅은 `app/logging_config.py` 의 `get_logger` 를 씁니다(`print` 금지).
 - 서비스는 역할별 모듈로 나눕니다(`pipeline`·`gpt_service`·`gemini_service`·`importer`·`editor`·`usage`·`progress` 등).
 - 로컬 제어 엔드포인트(설정/폴더 열기/예산 등)는 `_require_local` 로 루프백만 허용합니다.
-- 테스트: `python -m pytest` (스모크 테스트 `tests/test_smoke.py`).
+- 테스트: 스모크 테스트 `tests/test_smoke.py`. ⛔ **09 폴더 안에서 돌리면 과금·행** — 실행법은 위 「이 프로젝트 전용 규칙」 1번을 그대로 따릅니다.
 
 ## 현재 현황·백로그
 
