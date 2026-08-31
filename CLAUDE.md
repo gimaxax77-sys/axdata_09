@@ -14,7 +14,7 @@
    ⛔ `$env:OPENAI_API_KEY=""` 로 끄는 것도 안 됩니다 — PowerShell 은 **변수를 삭제**해 `.env` 폴백으로 키가 되살아납니다.
    **차단 수단은 「cwd 를 09 밖으로 옮기기」 하나뿐입니다.** 아래가 유일한 안전 실행법입니다(실측 57 passed / 8.3초 / 비용 0).
    ```
-   cd C:\Users\gimsf\AppData\Local\Temp
+   cd C:\Users\Gim59\AppData\Local\Temp
    $env:PYTHONPATH="D:\.CODE\AXdata\axdata_09_art studio"
    python -m pytest -q "D:\.CODE\AXdata\axdata_09_art studio\tests\test_smoke.py"
    ```
